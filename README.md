@@ -17,10 +17,10 @@ Features
 * models as CoffeeScript classes
 * asynchronous live updating of your Mongo documents using standard assignment on your models
 * deep tree assignment
-* array push support using the CongoObject api
+* array push support
 * loading documents into models (hydration)
-* hehydration into standard object trees
-* full async support on all operations through the CongoObject api
+* dehydration into standard object trees
+* full async support on all operations
 
 Planned
 -------
