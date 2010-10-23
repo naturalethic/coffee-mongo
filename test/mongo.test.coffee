@@ -1,10 +1,12 @@
-_      = (require './vendor/underscore')._
-assert = require 'assert'
-congo  = require './congo'
-
-sys     = require 'sys'
-log     = (s) -> sys.puts(s)
-inspect = (s) -> log(sys.inspect(s, true, null))
+try
+  util  = require 'util'
+catch error
+  util  = require 'sys'
+log     = (args...) -> util.puts(a) for a in args
+inspect = (args...) -> log(util.inspect(a)) for a in args
+_       = require '../lib/vendor/underscore'
+assert  = require 'assert'
+congo   = require '../lib/congo'
 
 class Provider extends congo.Model
   name:    congo.String

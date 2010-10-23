@@ -5,11 +5,6 @@ Modeling library for use with [Node](http://nodejs.org/), [CoffeeScript](http://
 
 ---
 
-Dependencies
-------------
-
-* [node-mongodb-native](http://github.com/christkv/node-mongodb-native)
-
 Features
 --------
 
@@ -95,10 +90,11 @@ API
 
 **Types**
 
-    congo.String
     congo.Identity
+    congo.String
     congo.Date
     congo.Integer
+    congo.Double
 
 **Functions**
 
@@ -110,7 +106,7 @@ API
     constructor(next)
     constructor(initial, next) # initial is an object with initial values, object is created in collection
     dehydrate()                # return a plain object tree
-    hydrate(document, next)    # populate a model with the values in document, recursing down the tree instantiating the appropriate models
+    hydrate(document)          # populate a model with the values in document, recursing down the tree instantiating the appropriate models
     get(key)                   # return a value on the model
     set(key, val, next)        # set a value on the model, calling next after it has updated the store
     push(key, val, next)       # push a value into an array on the model
@@ -121,3 +117,13 @@ Subclass of Model (methods are static)
 
     load(id, next)             # load an object from the collection given an ObjectID, passes the hydrated object to next
     clear(next)                # remove all documents from this collection
+
+---
+
+Notes
+-----
+
+* Congo borrows the pure bson library provided by [node-mongodb-native](http://github.com/christkv/node-mongodb-native).  If you prefer the
+  compiled version native, go ahead and compile it and replace ``lib/vendor/bson.js`` with ``bson.node``.  Many thanks and all credit goes to
+  Christian Amor Kvalheim <christkv@gmail.com> for his work on that.
+* If you have questions or comments, I often frequent ``#coffeescript`` on freenode.
