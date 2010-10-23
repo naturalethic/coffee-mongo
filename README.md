@@ -124,6 +124,6 @@ Notes
 -----
 
 * Congo borrows the pure bson library provided by [node-mongodb-native](http://github.com/christkv/node-mongodb-native).  If you prefer the
-  compiled version native, go ahead and compile it and replace ``lib/vendor/bson.js`` with ``bson.node``.  Many thanks and all credit goes to
+  compiled native version, go ahead and compile it and replace ``lib/vendor/bson.js`` with ``bson.node``.  Many thanks and all credit goes to
   Christian Amor Kvalheim <christkv@gmail.com> for his work on that.
 * If you have questions or comments, I often frequent ``#coffeescript`` on freenode.
