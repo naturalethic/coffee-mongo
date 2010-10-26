@@ -43,7 +43,7 @@ class Database
         connection.release()
         errors = @decompose data
         log 'Mongo error: ' + errors[0].err if errors[0].err?
-        next() if next?
+        next(document._id) if next?
 
   update: (collection, selector, update, next) ->
     @connection (connection) =>

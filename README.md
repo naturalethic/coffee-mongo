@@ -20,7 +20,7 @@ Features
 Planned
 -------
 
-* support for all first class array operations
+* support for more first class array operations
 * sub-document loading/updating
 * full support for the Mongo query api returning hydrated objects
 * support for all Mongo data types
@@ -46,7 +46,7 @@ Examples
       shipping: [ Shipping ]
 
     class Person extends congo.Object
-      name:      congo.String
+      name:      congo.String { default: 'Anonymous' }
       addresses: [ Address ]
 
     class Account extends congo.Collection
@@ -56,25 +56,28 @@ Examples
 
     store_address = (person, next) ->
       new Address { street: '123 Round Way', city: 'Seattle' }, (address) ->
-        person.push 'addresses', address, ->
+        person.addresses.push address, ->
           new Shipping {}, (shipping) ->
-            address.push 'shipping', shipping, ->
+            address.shipping.push shipping, ->
               new Provider { name: 'UPS', account: 'UPS123' }, (provider) ->
-                shipping.push 'providers', provider, ->
+                shipping.providers.push provider, ->
                   new Provider { name: 'FedEx', account: 'FED123' }, (provider) ->
-                    shipping.push 'providers', provider, next
+                    shipping.providers.push provider, next
 
-    new Account {}, (account) ->
+    new Account (account) ->
       new Person { name: 'Andrew Jackson' }, (person) ->
-        account.push 'people', person, ->
+        account.people.push person, ->
           store_address person, ->
             person.name = 'Thomas Jefferson'
+            person.name = 'Thomas Jefferson'
             person.addresses[0].city = 'Portland'
-            person.addresses[0].shipping[0].providers[1].account = 'FED789'
+            person.addresses[0].shipping[0].providers[0].account = 'UPS789'
+            new Provider { name: 'FedEx', account: 'FEDXXX' }, (provider) ->
+              person.addresses[0].shipping[0].providers[1] = provider
 
 **Loading**
 
-    Account.load new congo.ObjectID('4cb7386cf91998d110000001'), (account) ->
+    Account.load '4cb7386cf91998d110000001', (account) ->
       # do something with account
 
 ---
@@ -101,21 +104,31 @@ API
     congo.use(name)            # set the database to use
     congo.terminate()          # close all open connections -- use only if you *know* your app is finished with them
 
+**congo.ArrayType (class)**
+
+Arrays in the model are actually instances of this class.
+
+    push(val, next)            # push a new value onto the array and call next after it has been saved to the store
+    __set__(index, val, next)  # set a value on the array, calling next after it has updated the store (only set on indexes that have been pushed)
+    __get__(index)             # return a value on the array
+    __dehydrate__()            # return a plain object tree
+    __hydrate__(array)         # populate with the values in array, recursing down the tree instantiating the appropriate models
+
 **congo.Model (class)**
 
     constructor(next)
     constructor(initial, next) # initial is an object with initial values, object is created in collection
-    dehydrate()                # return a plain object tree
-    hydrate(document)          # populate a model with the values in document, recursing down the tree instantiating the appropriate models
-    get(key)                   # return a value on the model
-    set(key, val, next)        # set a value on the model, calling next after it has updated the store
-    push(key, val, next)       # push a value into an array on the model
+    __dehydrate__()            # return a plain object tree
+    __hydrate__(document)      # populate a model with the values in document, recursing down the tree instantiating the appropriate models
+    __get__(key)               # return a value on the model
+    __set__(key, val, next)    # set a value on the model, calling next after it has updated the store
 
 **congo.Collection (class)**
 
 Subclass of Model (methods are static)
 
     load(id, next)             # load an object from the collection given an ObjectID, passes the hydrated object to next
+    remove(selector)           # remove documents matching the selector
     clear(next)                # remove all documents from this collection
 
 ---
