@@ -3,7 +3,7 @@ try
 catch error
   util   = require 'sys'
 log      = (args...) -> util.puts(a) for a in args
-inspect  = (args...) -> log(util.inspect(a)) for a in args
+inspect  = (args...) -> log(util.inspect(a, true, null)) for a in args
 _bson    = require './vendor/bson'
 binary   = require './vendor/binary'
 net      = require 'net'

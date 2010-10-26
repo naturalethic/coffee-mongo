@@ -214,41 +214,61 @@ class Collection extends Model
   _id: __type__.Identity
 
   constructor: (initial, next) ->
+    @__flushing__ = false
+    @__store_queue__ = []
     if initial instanceof Function
       next = initial
       initial = null
     super initial
     if not @__values__._id?
-      Congo.db.insert @constructor.name, @__dehydrate__(), (id) =>
-        @__values__._id = id
-        next @
+      document = @__dehydrate__()
+      @__queue_store__ (qnext) =>
+        log '[ Creating  ] ' + @constructor.name if process.env.DEBUG?
+        Congo.db.insert @constructor.name, document, (id) =>
+          # log 'ID: ' + id
+          @__values__._id = id
+          next @ if next?
+          qnext()
     else if next?
       next @
 
   __ascend_push__: (key, val, next) ->
-    @__store_push__ key, val, next
-
-  __store_push__: (key, val, next) ->
-    log '[ Storing   ] ' + @constructor.name + '.' + key if process.env.DEBUG?
-    doc = {}
+    document = {}
     if val instanceof Model
-      doc[key] = val.__dehydrate__()
+      document[key] = val.__dehydrate__()
     else
-      doc[key] = val
-    Congo.db.update @constructor.name, { _id: @__values__._id }, { $push: doc }, next
+      document[key] = val
+    @__queue_store__ (qnext) =>
+      log '[ Storing   ] ' + @constructor.name + '.' + key if process.env.DEBUG?
+      Congo.db.update @constructor.name, { _id: @__values__._id }, { $push: document }, ->
+        next() if next?
+        qnext()
 
   __ascend_set__: (key, val, next) ->
-    @__store_set__ key, val, next
-
-  __store_set__: (key, val, next) ->
     return if key == '_id'
-    log '[ Storing   ] ' + @constructor.name + '.' + key if process.env.DEBUG?
-    doc = {}
+    document = {}
     if val instanceof Model
-      doc[key] = val.__dehydrate__()
+      document[key] = val.__dehydrate__()
     else
-      doc[key] = val
-    Congo.db.update @constructor.name, { _id: @__values__._id }, { $set: doc }, next
+      document[key] = val
+    @__queue_store__ (qnext) =>
+      log '[ Storing   ] ' + @constructor.name + '.' + key if process.env.DEBUG?
+      Congo.db.update @constructor.name, { _id: @__values__._id }, { $set: document }, ->
+        next() if next?
+        qnext()
+
+  __queue_store__: (op) ->
+    @__store_queue__.push op
+    if not @__flushing__
+      @__flushing__ = true
+      @__flush_store_queue__()
+
+  __flush_store_queue__: ->
+    if @__store_queue__.length == 0
+      @__flushing__ = false
+    else
+      @__store_queue__.shift()(=>
+        @__flush_store_queue__())
 
   __save__: (next) ->
     Congo.db.update @constructor.name, { _id: @__values__._id }, @__dehydrate__(), next

@@ -75,7 +75,7 @@ Account.clear ->
             result = account.__dehydrate__()
             result._id = test_result._id
             assert.ok _.isEqual(test_result, result)
-        setTimeout go, 200
+        setTimeout go, 400
 
   new Account {}, (account) ->
     new Person { name: 'Andrew Jackson' }, (person) ->
@@ -95,12 +95,12 @@ Account.clear ->
         go1 = ->
           new Provider { name: 'FedEx', account: 'FEDXXX' }, (provider) ->
             person.addresses[0].shipping[0].providers[1] = provider
-          setTimeout go2, 200
+          setTimeout go2, 400
         go2 = ->
           Account.load account._id, (loaded_account) ->
             log '--- Setting scalars via assignment'
             assert.ok _.isEqual(account.__dehydrate__(), loaded_account.__dehydrate__())
-        setTimeout go2, 200
+        setTimeout go2, 400
 
   new Account {}, (account) ->
     new Person { name: 'Andrew Jackson' }, (person) ->
@@ -115,5 +115,5 @@ Account.clear ->
           Account.load account._id, (loaded2) ->
             log '--- Setting properties after hydration'
             assert.ok _.isEqual(loaded1.__dehydrate__(), loaded2.__dehydrate__())
-        setTimeout go2, 200
-    setTimeout go, 200
+        setTimeout go2, 400
+    setTimeout go, 400
