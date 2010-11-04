@@ -100,6 +100,54 @@ class ArrayType
       @__defineGetter__ index, =>
         @__get__ index
 
+# class ObjectType
+#   constructor: (@__type__) ->
+#     @__values__ = {}
+
+#   __set__: (key, val, next) ->
+#     log '[ Setting   ] ' + @__key__ + '.' + key if process.env.DEBUG?
+#     @__values__[key] = val
+#     @__relate__ key, val
+#     @__parent__.__ascend_set__ @__key__ + '.' + key, val, next
+
+#   __ascend_set__: (key, val, next) ->
+#     log '[ Ascending ] ' + @__key__ + '.' + key if process.env.DEBUG?
+#     @__parent__.__ascend_set__ @__key__ + '.' + key, val, next
+
+#   __get__: (key) ->
+#     @__values__[key]
+
+#   __relate__: (key, val) ->
+#     if val instanceof Model
+#       log '[ Relating  ] ' + @__key__ + '.' + key if process.env.DEBUG?
+#       val.__parent__ = @
+#       val.__key__    = key
+
+#   __dehydrate__: ->
+#     document = {}
+#     for key, val of @__values__
+#       if val instanceof Model
+#         document[key] = val.__dehydrate__()
+#       else
+#         document[key] = val
+#     document
+
+#   __hydrate__: (document) ->
+#     log '[ Hydrating ] ' + @__key__ if process.env.DEBUG?
+#     for key, val of document
+#       if @__type__ instanceof Function and @__type__.prototype instanceof Model
+#         new @__type__ (object) =>
+#           @__relate__ key, object
+#           @__values__[key] = object
+#           object.__hydrate__ val
+#       else
+#         @__values__[key] = val
+#       @__defineSetter__ key, (val) =>
+#         @__set__ key, val
+#       @__defineGetter__ key, =>
+#         @__get__ key
+#     @
+
 class DateType extends Type
   initialize: (val) ->
     return val if val?
@@ -108,6 +156,7 @@ class DateType extends Type
 
 __type__ =
   Identity: (args...) -> new Type args...
+  # Object:   (args...) -> new ObjectType args...
   Integer:  (args...) -> new Type args...
   Double:   (args...) -> new Type args...
   String:   (args...) -> new Type args...

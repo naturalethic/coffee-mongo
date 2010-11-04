@@ -21,7 +21,7 @@ Planned
 -------
 
 * support for more first class array operations
-* sub-document loading/updating
+* sub-document loading/updating (lazy loading)
 * full support for the Mongo query api returning hydrated objects
 * support for all Mongo data types
 

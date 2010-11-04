@@ -23,8 +23,7 @@ class Database
     @connections = []
 
   connection: (next) ->
-    for i in [0...@connections.length]
-      connection = @connections[i]
+    for connection, i in @connections
       if connection.available
         log 'Connection: ' + i if process.env.DEBUG?
         next connection
@@ -39,50 +38,97 @@ class Database
     @connection (connection) =>
       connection.retain()
       connection.send (@compose collection, 2002, 0, document)
-      connection.send (@compose '$cmd', 2004, 0, 0, 1, { getLastError: 1 }), (data) =>
+      @last_error connection, (error) ->
         connection.release()
-        errors = @decompose data
-        log 'Mongo error: ' + errors[0].err if errors[0].err?
+        log 'Mongo error: ' + error.err if error.err?
         next(document._id) if next?
 
-  update: (collection, selector, update, next) ->
+  update: (collection, query, update, next) ->
     @connection (connection) =>
       connection.retain()
-      connection.send (@compose collection, 2001, 0, 0, selector, update)
-      connection.send (@compose '$cmd', 2004, 0, 0, 1, { getLastError: 1 }), (data) =>
+      connection.send (@compose collection, 2001, 0, 0, query, update)
+      @last_error connection, (error) ->
         connection.release()
-        errors = @decompose data
-        log 'Mongo error: ' + errors[0].err if errors[0].err?
-        next(errors[0].n) if next?
+        log 'Mongo error: ' + error.err if error.err?
+        next() if next?
 
-  query: (collection, selector, next) ->
+  find: (collection, query, args..., next) ->
+    path = if args.length > 0 then { (args[0]): 1 } else {}
     @connection (connection) =>
       connection.retain()
-      connection.send (@compose collection, 2004, 0, 0, 0, selector), (data) =>
+      connection.send (@compose collection, 2004, 0, 0, 0, query, path), (data) =>
         documents = @decompose data
-        connection.send (@compose '$cmd', 2004, 0, 0, 1, { getLastError: 1 }), (data) =>
+        @last_error connection, (error) ->
           connection.release()
-          errors = @decompose data
-          log 'Mongo error: ' + errors[0].err if errors[0].err?
+          log 'Mongo error: ' + error.err if error.err?
           next(documents) if next?
 
-  remove: (collection, selector, next) ->
+  find_one: (collection, query, args..., next) ->
+    @find collection, query, args..., (documents) ->
+      if documents.length > 0 then next documents[0] else next null
+
+  exists: (collection, id, path, next) ->
+    @find collection, { _id: id, (path): { $exists: true } }, '_id', (documents) ->
+      if documents.length > 0 then next true else next false
+
+  remove: (collection, query, next) ->
     @connection (connection) =>
       connection.retain()
-      connection.send (@compose collection, 2006, 0, 0, selector)
+      connection.send (@compose collection, 2006, 0, 0, query)
       connection.send (@compose '$cmd', 2004, 0, 0, 1, { getLastError: 1 }), (data) =>
         connection.release()
         errors = @decompose data
         log 'Mongo error: ' + errors[0].err if errors[0].err?
         next() if next?
 
+  clear: (collection, next) ->
+    @remove collection, {}, next
+
+  last_error: (connection, next) ->
+    connection.send (@compose '$cmd', 2004, 0, 0, 1, { getLastError: 1 }), (data) =>
+      next (@decompose data)[0] if next?
+
+  command: (command, options, next) ->
+    options.__command__ = 'findandmodify'
+    @connection (connection) =>
+      connection.retain()
+      connection.send (@compose '$cmd', 2004, 0, 0, 1, options), (data) =>
+        connection.release()
+        document = (@decompose data)[0]
+        if document['bad cmd']?
+          log 'Mongo error: ' + document.errmsg
+          inspect document['bad cmd']
+          next null if next?
+        else if document['$err']?
+          log 'Mongo error: ' + document['$err']
+          next null if next?
+        else
+          next document if next?
+
+  modify: (collection, options, next) ->
+    options.findandmodify = collection
+    options.query  ?= {}
+    options.sort   ?= {}
+    options.remove ?= false
+    options.update ?= {}
+    options.new    ?= false
+    options.fields ?= {}
+    options.upsert ?= false
+    @command 'findandmodify', options, (document) ->
+      next document.value
+
+  sequence: (collection, id, args..., next) ->
+    key = if args.length > 0 then args[0] else '_root'
+    @modify collection, { new: true, query: { _id: id }, update: { $inc: { ('_sequence.' + key): 1 }}, fields: { ('_sequence.' + key): 1 }}, (result) ->
+      next result._sequence[key]
+
   compose: (collection, code, flags, items...) ->
     data = binary.fromInt(flags) + binary.encode_cstring(@name + '.' + collection)
-    for i in [0...items.length]
-      if typeof items[i] == 'object'
-        data += bson.serialize items[i]
+    for item in items
+      if typeof item == 'object'
+        data += bson.serialize item
       else
-        data += binary.fromInt items[i]
+        data += binary.fromInt item
     binary.fromInt(data.length + 4 * 4) + binary.fromInt(0) + binary.fromInt(0) + binary.fromInt(code) + data
 
   decompose: (data) ->
@@ -99,7 +145,7 @@ class Database
       count = binary.toInt(data.substr i)
       i += 4
       documents = []
-      for c in [0...count]
+      while count--
         documents.push bson.deserialize(data.substr i)
         i += binary.toInt(data.substr i)
     else
@@ -129,8 +175,6 @@ class Connection
         @buffer = ''
     @stream.addListener 'close', (err) =>
       log 'closed'
-    @stream.addListener 'end', =>
-      log 'end'
     @stream.addListener 'end', =>
       log 'end'
     @stream.addListener 'close', =>
