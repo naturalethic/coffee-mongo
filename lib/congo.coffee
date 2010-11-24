@@ -324,7 +324,7 @@ class Collection extends Model
 
   @load: (id, next) ->
     id = new mongo.ObjectID(id) if typeof id == 'string'
-    Congo.db.query @name, { _id: id }, (documents) =>
+    Congo.db.find @name, { _id: id }, (documents) =>
       if documents.length == 0
         next null if next?
       else
