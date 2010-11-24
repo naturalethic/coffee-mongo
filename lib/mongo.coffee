@@ -14,7 +14,7 @@ class Database
   constructor: (@name, args...) ->
     @host = 'localhost'
     @port = 27017
-    @idfactory = (next) -> next new ObjectID
+    @idfactory = (collection, next) -> next new ObjectID
     @connections = []
     for arg in args
       switch typeof arg
@@ -43,7 +43,7 @@ class Database
     connection.open -> next connection
 
   insert: (collection, document, next) ->
-    @idfactory (id) =>
+    @idfactory collection, (id) =>
       document._id = id
       @connection (connection) =>
         connection.retain()
