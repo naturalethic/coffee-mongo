@@ -4,7 +4,6 @@ catch error
   util  = require 'sys'
 log     = (args...) -> util.puts(a) for a in args
 inspect = (args...) -> log(util.inspect(a, true, null)) for a in args
-_       = require '../lib/vendor/underscore'
 assert  = require 'assert'
 congo   = require '../lib/congo'
 
@@ -62,7 +61,7 @@ Account.clear ->
               log '--- Setting properties on a complexish tree using scalars, objects, and arrays [sequential]'
               result = account.__dehydrate__()
               result._id = test_result._id
-              assert.ok _.isEqual(test_result, result)
+              assert.deepEqual(test_result, result)
 
   new Account {}, (account) ->
     new Person { name: 'Andrew Jackson' }, (person) ->
@@ -74,7 +73,7 @@ Account.clear ->
             log '--- Setting properties on a complexish tree using scalars, objects, and arrays [asynchronous] '
             result = account.__dehydrate__()
             result._id = test_result._id
-            assert.ok _.isEqual(test_result, result)
+            assert.deepEqual(test_result, result)
         setTimeout go, 400
 
   new Account {}, (account) ->
@@ -83,7 +82,7 @@ Account.clear ->
         store_address_0 person, ->
           Account.load account._id, (loaded_account) ->
             log '--- Check that a loaded and hydrated document matches the saved document'
-            assert.ok _.isEqual(account.__dehydrate__(), loaded_account.__dehydrate__())
+            assert.deepEqual(account.__dehydrate__(), loaded_account.__dehydrate__())
 
   new Account {}, (account) ->
     new Person { name: 'Andrew Jackson' }, (person) ->
@@ -99,7 +98,7 @@ Account.clear ->
         go2 = ->
           Account.load account._id, (loaded_account) ->
             log '--- Setting scalars via assignment'
-            assert.ok _.isEqual(account.__dehydrate__(), loaded_account.__dehydrate__())
+            assert.deepEqual(account.__dehydrate__(), loaded_account.__dehydrate__())
         setTimeout go2, 400
 
   new Account {}, (account) ->
@@ -114,6 +113,6 @@ Account.clear ->
         go2 = ->
           Account.load account._id, (loaded2) ->
             log '--- Setting properties after hydration'
-            assert.ok _.isEqual(loaded1.__dehydrate__(), loaded2.__dehydrate__())
+            assert.deepEqual(loaded1.__dehydrate__(), loaded2.__dehydrate__())
         setTimeout go2, 400
     setTimeout go, 400
