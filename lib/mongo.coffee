@@ -11,10 +11,20 @@ ObjectID = _bson.ObjectID
 bson     = _bson.BSON
 
 class Database
-  constructor: (@name, @host, @port) ->
-    @host ?= 'localhost'
-    @port ?= 27017
+  constructor: (@name, args...) ->
+    #@host, @port, @idfactory) ->
+    @host = 'localhost'
+    @port = 27017
+    @idfactory = -> new ObjectID
     @connections = []
+    for arg in args
+      switch typeof arg
+        when 'string'
+          @host = arg
+        when 'number'
+          @port = arg
+        when 'function'
+          @idfactory = arg
 
   # Close all open connections.  Use at your own risk.
   @close: ->
