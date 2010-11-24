@@ -12,7 +12,6 @@ bson     = _bson.BSON
 
 class Database
   constructor: (@name, args...) ->
-    #@host, @port, @idfactory) ->
     @host = 'localhost'
     @port = 27017
     @idfactory = -> new ObjectID
