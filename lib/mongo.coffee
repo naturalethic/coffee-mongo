@@ -14,7 +14,7 @@ class Database
   constructor: (@name, args...) ->
     @host = 'localhost'
     @port = 27017
-    @idfactory = -> new ObjectID
+    @idfactory = (next) -> next new ObjectID
     @connections = []
     for arg in args
       switch typeof arg
@@ -43,14 +43,15 @@ class Database
     connection.open -> next connection
 
   insert: (collection, document, next) ->
-    document._id = new ObjectID()
-    @connection (connection) =>
-      connection.retain()
-      connection.send (@compose collection, 2002, 0, document)
-      @last_error connection, (error) ->
-        connection.release()
-        log 'Mongo error: ' + error.err if error.err?
-        next(document._id) if next?
+    @idfactory (id) =>
+      document._id = id
+      @connection (connection) =>
+        connection.retain()
+        connection.send (@compose collection, 2002, 0, document)
+        @last_error connection, (error) ->
+          connection.release()
+          log 'Mongo error: ' + error.err if error.err?
+          next(document._id) if next?
 
   update: (collection, query, update, next) ->
     @connection (connection) =>
