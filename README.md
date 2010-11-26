@@ -1,6 +1,8 @@
 Congo
 =====
 
+** TRAVEL ADVISORY: LIBRARY IN FLUX AND BROKEN -- RETURNING SOON **
+
 Modeling library for use with [Node](http://nodejs.org/), [CoffeeScript](http://jashkenas.github.com/coffee-script/), and [Mongo](http://www.mongodb.org/).
 
 ---

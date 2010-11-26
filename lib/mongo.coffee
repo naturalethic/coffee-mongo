@@ -1,20 +1,34 @@
-try
-  util   = require 'util'
-catch error
-  util   = require 'sys'
-log      = (args...) -> util.puts(a) for a in args
-inspect  = (args...) -> log(util.inspect(a, true, null)) for a in args
-_bson    = require './vendor/bson'
-binary   = require './vendor/binary'
 net      = require 'net'
+util     = require 'util'
+put      = (args...) -> util.print(a) for a in args
+puts     = (args...) -> put(a + '\n') for a in args
+p        = (args...) -> puts(util.inspect(a, true, null)) for a in args
+binary   = require './vendor/binary'
+_bson    = require './vendor/bson'
 ObjectID = _bson.ObjectID
 bson     = _bson.BSON
 
+# Represents a Mongo database
+#
+# Takes:
+#   name      : name of the database
+#   host      : host (optional, defaults to localhost)
+#   port      : port (optional, defaults to 27017)
+#   idfactory : a function that provides ids (optional, defaults to ObjectIDs)
+#
+# An idfactory has the following interface:
+#
+# Takes:
+#   collection : collection name
+#
+# Gives:
+#   error      : error, if any
+#   id         : a new unique id for the provided collection
 class Database
   constructor: (@name, args...) ->
     @host = 'localhost'
     @port = 27017
-    @idfactory = (collection, next) -> next new ObjectID
+    @idfactory = (collection, next) -> next null, new ObjectID
     @connections = []
     for arg in args
       switch typeof arg
@@ -26,95 +40,167 @@ class Database
           @idfactory = arg
 
   # Close all open connections.  Use at your own risk.
-  @close: ->
+  close: ->
     for connection in @connections
       connection.close()
     @connections = []
 
+  # XXX: Needs limits and queuing
+  # Pull a connection from the pool, or create a new one.
   connection: (next) ->
     for connection, i in @connections
       if connection.available
-        log 'Connection: ' + i if process.env.DEBUG?
-        next connection
+        puts 'Connection: ' + i if process.env.DEBUG?
+        next null, connection
         return
-    log 'Connection: ' + @connections.length if process.env.DEBUG?
+    puts 'Connection: ' + @connections.length if process.env.DEBUG?
     connection = new Connection @host, @port
     @connections.push connection
-    connection.open -> next connection
+    connection.open next
 
+  # Insert a document into a collection
+  #
+  # Takes:
+  #   collection : collection name
+  #   document   : the document
+  #
+  # Gives:
+  #   error      : error
+  #   document   : the document with '_id' populated
   insert: (collection, document, next) ->
-    @idfactory collection, (id) =>
+    idfactory = @idfactory
+    if document._id
+      idfactory = (_, next) -> next null, document._id
+    idfactory collection, (error, id) =>
       document._id = id
-      @connection (connection) =>
+      @connection (error, connection) =>
         connection.retain()
         connection.send (@compose collection, 2002, 0, document)
-        @last_error connection, (error) ->
+        @last_error connection, (error, mongo_error) ->
           connection.release()
-          log 'Mongo error: ' + error.err if error.err?
-          next(document._id) if next?
+          next(mongo_error, document) if next
 
-  update: (collection, query, update, next) ->
-    @connection (connection) =>
+  # Updates documents in a collection
+  #
+  # Takes:
+  #   collection : collection name
+  #   query      : query document (optional - if absent, updates all documents)
+  #   update     : document to replace found documents
+  #
+  # Gives:
+  #   error      : error
+  update: (collection, args...) ->
+    next   = args.pop()
+    update = args.pop() or {}
+    query  = args.pop() or {}
+    @connection (error, connection) =>
       connection.retain()
       connection.send (@compose collection, 2001, 0, 0, query, update)
-      @last_error connection, (error) ->
+      @last_error connection, (error, mongo_error) ->
         connection.release()
-        log 'Mongo error: ' + error.err if error.err?
-        next() if next?
+        next mongo_error if next
 
-  find: (collection, query, args..., next) ->
-    path = if args.length > 0 then { (args[0]): 1 } else {}
-    @connection (connection) =>
+  # Find documents in a collection
+  #
+  # Takes:
+  #   collection : collection name
+  #   query      : query document (optional - if absent, gives all documents)
+  #
+  # Gives:
+  #   error      : error
+  #   documents  : array of found documents
+  find: (collection, args...) ->
+    next  = args.pop()
+    query = args.pop() or {}
+    @connection (error, connection) =>
       connection.retain()
-      connection.send (@compose collection, 2004, 0, 0, 0, query, path), (data) =>
+      connection.send (@compose collection, 2004, 0, 0, 0, query), (error, data) =>
         documents = @decompose data
-        @last_error connection, (error) ->
+        @last_error connection, (error, mongo_error) ->
           connection.release()
-          log 'Mongo error: ' + error.err if error.err?
-          next(documents) if next?
+          next mongo_error, documents if next
 
-  find_one: (collection, query, args..., next) ->
-    @find collection, query, args..., (documents) ->
-      if documents.length > 0 then next documents[0] else next null
+  # Find a single document in a collection
+  #
+  # Takes:
+  #   collection : collection name
+  #   query      : query document (optional - if absent, gives first overall document)
+  #
+  # Gives:
+  #   error      : error
+  #   document   : the found document, or null
+  find_one: (collection, args...) ->
+    next  = args.pop()
+    query = args.pop() or {}
+    @find collection, query, (error, documents) ->
+      if documents.length > 0 then next error, documents[0] else next error, null
 
-  exists: (collection, id, path, next) ->
-    @find collection, { _id: id, (path): { $exists: true } }, '_id', (documents) ->
-      if documents.length > 0 then next true else next false
+  # XXX: Come back to these for result limits (path)
+  # find: (collection, query, args..., next) ->
+  #   path = if args.length > 0 then { (args[0]): 1 } else {}
+  #   @connection (connection) =>
+  #     connection.retain()
+  #     connection.send (@compose collection, 2004, 0, 0, 0, query, path), (data) =>
+  #       documents = @decompose data
+  #       @last_error connection, (error) ->
+  #         connection.release()
+  #         puts 'Mongo error: ' + error.err if error.err?
+  #         next(documents) if next
+  # find_one: (collection, query, args..., next) ->
+  #   @find collection, query, args..., (documents) ->
+  #     if documents.length > 0 then next documents[0] else next null
 
-  remove: (collection, query, next) ->
-    @connection (connection) =>
-      connection.retain()
-      connection.send (@compose collection, 2006, 0, 0, query)
-      connection.send (@compose '$cmd', 2004, 0, 0, 1, { getLastError: 1 }), (data) =>
-        connection.release()
-        errors = @decompose data
-        log 'Mongo error: ' + errors[0].err if errors[0].err?
-        next() if next?
+  # exists: (collection, id, path, next) ->
+  #   @find collection, { _id: id, (path): { $exists: true } }, '_id', (documents) ->
+  #     if documents.length > 0 then next true else next false
 
+  # Remove all documents from a collection
+  #
+  # Takes:
+  #   collection : collection name
+  #
+  # Gives:
+  #   error      : error
   clear: (collection, next) ->
     @remove collection, {}, next
 
-  last_error: (connection, next) ->
-    connection.send (@compose '$cmd', 2004, 0, 0, 1, { getLastError: 1 }), (data) =>
-      next (@decompose data)[0] if next?
-
-  command: (command, options, next) ->
-    options.__command__ = 'findandmodify'
-    @connection (connection) =>
+  # Remove documents from a collection matching a query
+  #
+  # Takes:
+  #   collection : collection name
+  #   query      : query document (optional - if absent, removes all documents)
+  #
+  # Gives:
+  #   error      : error
+  remove: (collection, args...) ->
+    next  = args.pop()
+    query = args.pop() or {}
+    @connection (error, connection) =>
       connection.retain()
-      connection.send (@compose '$cmd', 2004, 0, 0, 1, options), (data) =>
+      connection.send (@compose collection, 2006, 0, 0, query)
+      connection.send (@compose '$cmd', 2004, 0, 0, 1, { getLastError: 1 }), (error, data) =>
         connection.release()
-        document = (@decompose data)[0]
-        if document['bad cmd']?
-          log 'Mongo error: ' + document.errmsg
-          inspect document['bad cmd']
-          next null if next?
-        else if document['$err']?
-          log 'Mongo error: ' + document['$err']
-          next null if next?
-        else
-          next document if next?
+        next @decompose_error(data) if next
 
+  # Check server for last error, if any
+  last_error: (connection, next) ->
+    connection.send (@compose '$cmd', 2004, 0, 0, 1, { getLastError: 1 }), (error, data) =>
+      next error, @decompose_error(data) if next
+
+  # Decompose a last_error response
+  decompose_error: (data) ->
+    error = (@decompose data)[0]
+    if error.err then { code: error.code, message: error.err } else null
+
+  # Remove documents from a collection matching a query
+  #
+  # Takes:
+  #   collection : collection name
+  #   options    : (XXX: document this)
+  #
+  # Gives:
+  #   error      : error
+  #   document   : the modified document
   modify: (collection, options, next) ->
     options.findandmodify = collection
     options.query  ?= {}
@@ -124,14 +210,37 @@ class Database
     options.new    ?= false
     options.fields ?= {}
     options.upsert ?= false
-    @command 'findandmodify', options, (document) ->
-      next document.value
+    @command 'findandmodify', options, (error, document) ->
+      next error, document.value
 
-  sequence: (collection, id, args..., next) ->
-    key = if args.length > 0 then args[0] else '_root'
-    @modify collection, { new: true, query: { _id: id }, update: { $inc: { ('_sequence.' + key): 1 }}, fields: { ('_sequence.' + key): 1 }}, (result) ->
-      next result._sequence[key]
+  command: (command, options, next) ->
+    options.__command__ = 'findandmodify'
+    @connection (error, connection) =>
+      connection.retain()
+      connection.send (@compose '$cmd', 2004, 0, 0, 1, options), (error, data) =>
+        connection.release()
+        if next
+          document = (@decompose data)[0]
+          if document['bad cmd']?
+            next document, null
+          else if document['$err']?
+            next document, null
+          else
+            next null, document
 
+  # XXX: Doesn't go in here, move sequences somewhere else
+  # sequence: (key, next) ->
+  #   proceed = =>
+  #     @modify '__sequence__', { new: true, query: { key: key }, update: { $inc: { value: 1 }}, fields: { value: 1 }}, (result) =>
+  #       next result.value
+  #   @find_one '__sequence__', { key: key }, (document) =>
+  #     if not document
+  #       @insert '__sequence__', { _id: new ObjectID, key: key }, (id) =>
+  #         proceed()
+  #     else
+  #       proceed()
+
+  # Compose a mongo binary message
   compose: (collection, code, flags, items...) ->
     data = binary.fromInt(flags) + binary.encode_cstring(@name + '.' + collection)
     for item in items
@@ -141,6 +250,7 @@ class Database
         data += binary.fromInt item
     binary.fromInt(data.length + 4 * 4) + binary.fromInt(0) + binary.fromInt(0) + binary.fromInt(code) + data
 
+  # Deompose a mongo binary message
   decompose: (data) ->
     i = 4 * 3
     code = binary.toInt(data.substr i)
@@ -159,7 +269,7 @@ class Database
         documents.push bson.deserialize(data.substr i)
         i += binary.toInt(data.substr i)
     else
-      log 'Unsupported response', code
+      puts 'Unsupported response', code
     documents
 
 class Connection
@@ -176,21 +286,17 @@ class Connection
 
   open: (next) ->
     @stream = net.createConnection @port, @host
-    @stream.addListener 'connect', =>
-      next()
-    @stream.addListener 'data', (data) =>
+    @stream.on 'connect', =>
+      next null, @
+    @stream.on 'data', (data) =>
       @buffer += data.toString 'binary'
       if binary.toInt(@buffer) == @buffer.length
-        @next(@buffer) if @next
+        @next null, @buffer if @next
         @buffer = ''
-    @stream.addListener 'close', (err) =>
-      log 'closed'
-    @stream.addListener 'end', =>
-      log 'end'
-    @stream.addListener 'close', =>
-      log 'close'
-    @stream.addListener 'timeout', =>
-      log 'timeout'
+    @stream.on 'close', =>
+    @stream.on 'end', =>
+    @stream.on 'close', =>
+    @stream.on 'timeout', =>
 
   send: (data, next) ->
     @next = next
