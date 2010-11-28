@@ -1,9 +1,11 @@
 # buffer.coffee
 #
-# Binary addon for node.js buffer.  Assumes little-endian (for now).
+# Binary and other addons for buffer
 #
 # Reference:
 # http://jsfromhell.com/classes/binary-parser
+#
+# Buffers default to little-endian -- use Buffer.reverse to make big-endian
 
 global.util   = require 'util'
 global.put    = (args...) -> util.print a for a in args
@@ -23,12 +25,13 @@ sumBytes = (buffer, start, length) ->
   bytes_needed = (start + length)
   if buffer.length < bytes_needed
     throw Error "binary shortfall: buffer size: #{buffer.length}, size needed: #{bytes_needed}"
-  sum = buffer[ start + length - 1 ]
-  for i in [(start + length - 2)..(start)]
-    sum <<= 8
-    sum += buffer[i]
+  sum = buffer[start]
+  n = 1
+  for i in [(start + 1)..(start + length - 1)]
+    sum += buffer[i] * (Math.pow(2, (n++ * 8)))
   sum
 
+# XXX: This didn't work with longs greater than maxint, suspicious of it's efficacy with doubles
 sumBits = (buffer, start, length) ->
   return 0 if start < 0 or length <= 0
   bytes_needed = -( -(start + length) >> 3 )
@@ -203,6 +206,19 @@ Buffer.prototype.toFloat  =     -> decodeFloat @, 23, 8
 Buffer.fromFloat          = (n) -> encodeFloat n, 23, 8
 Buffer.prototype.toDouble =     -> decodeFloat @, 52, 11
 Buffer.fromDouble         = (n) -> encodeFloat n, 52, 11
+
+Buffer.prototype.reverse = ->
+  rbuf = new Buffer @.length
+  for i in [0...@.length]
+    # p "#{i} -> #{@.length - i - 1}"
+    @.copy rbuf, i, @.length - i - 1, @.length - i
+  rbuf
+
+Buffer.prototype.toHex = ->
+  hex = ''
+  for i in [0...@.length]
+    hex += if @[i] < 16 then '0' + @[i].toString 16 else @[i].toString 16
+  hex
 
 module.exports =
   decodeInt: decodeInt
