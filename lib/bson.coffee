@@ -1,10 +1,4 @@
-# Adapted from bson.js @ http://github.com/christkv/node-mongodb-native
-
 binary = require './binary'
-ob = require './vendor/binary'
-
-_max_int = Math.pow(2, 32)
-_min_int = -(_max_int / 2)
 
 _type_float = 0x01
 _type_int = 0x10
@@ -31,8 +25,8 @@ _type_long = 0x12
 
 class ObjectID
   # XXX: _machine_id is supposed to be derived from the hostname
-  _machine_id = binary.encodeInt(Math.floor(Math.random() * 0xffffff), 24, false)
-  _process_id = Buffer.fromShort(process.pid)
+  _machine_id = Buffer.fromInt(Math.floor(Math.random() * 0xffffff)).slice(1)
+  _process_id = Buffer.fromInt(process.pid).slice(2)
   _oid_index  = 0
 
   constructor: (@id) ->
@@ -41,7 +35,14 @@ class ObjectID
       Buffer.fromInt(Math.floor(new Date().getTime() / 1000)).reverse().copy @id, 0, 0
       _machine_id.copy @id, 4, 0
       _process_id.copy @id, 7, 0
-      binary.encodeInt(_oid_index++, 24, false).reverse().copy @id, 9, 0
+      Buffer.fromInt(_oid_index++).slice(1).reverse().copy @id, 9, 0
+      # binary.encodeInt(_oid_index++, 24, false).reverse().copy @id, 9, 0
+
+p Buffer.fromInt(1)
+p new ObjectID
+p new ObjectID
+p new ObjectID
+p new ObjectID
 
 encodeKeyName = (value) ->
   length = Buffer.byteLength(value)
