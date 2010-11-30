@@ -282,7 +282,7 @@ class BSONElement extends BSONBuffer
             v = new BSONDate args[1]
           else if args[1] instanceof Array
             v = new BSONArray args[1]
-          else if args[1] instanceof BSONObjectID
+          else if args[1] instanceof BSONBuffer
             v = args[1]
           else
             v = new BSONDocument args[1]
