@@ -1,195 +1,367 @@
-binary = require './binary'
+_int_min    = - Math.pow(2, 31)
+_int_max    =   Math.pow(2, 31) - 1
+_int_top    =   Math.pow 2, 32
 
-_type_float = 0x01
-_type_int = 0x10
-_type_long = 0x12
-
-# |	0x02" e_name string	UTF-8 string
-# |	0x03" e_name document	Embedded document
-# |	0x04" e_name document	Array
-# |	0x05" e_name binary	Binary data
-# |	0x06" e_name	Undefined — Deprecated
-# |	0x07" e_name (byte*12)	ObjectId
-# |	0x08" e_name 0x00"	Boolean "false"
-# |	0x08" e_name 0x01"	Boolean "true"
-# |	0x09" e_name int64	UTC datetime
-# |	0x0A" e_name	Null value
-# |	0x0B" e_name cstring cstring	Regular expression
-# |	0x0C" e_name string (byte*12)	DBPointer — Deprecated
-# |	0x0D" e_name string	JavaScript code
-# |	0x0E" e_name string	Symbol
-# |	0x0F" e_name code_w_s	JavaScript code w/ scope
-# |	0x11" e_name int64	Timestamp
-# |	0xFF" e_name	Min key
-# |	0x7F" e_name	Max key
-
-class ObjectID
-  # XXX: _machine_id is supposed to be derived from the hostname
-  _machine_id = Buffer.fromInt(Math.floor(Math.random() * 0xffffff)).slice(1)
-  _process_id = Buffer.fromInt(process.pid).slice(2)
-  _oid_index  = 0
-
-  constructor: (@id) ->
-    if not @id
-      @id = new Buffer 12
-      Buffer.fromInt(Math.floor(new Date().getTime() / 1000)).reverse().copy @id, 0, 0
-      _machine_id.copy @id, 4, 0
-      _process_id.copy @id, 7, 0
-      Buffer.fromInt(_oid_index++).slice(1).reverse().copy @id, 9, 0
-      # binary.encodeInt(_oid_index++, 24, false).reverse().copy @id, 9, 0
-
-p Buffer.fromInt(1)
-p new ObjectID
-p new ObjectID
-p new ObjectID
-p new ObjectID
-
-encodeKeyName = (value) ->
-  length = Buffer.byteLength(value)
-  buffer = new Buffer length + 1
-  buffer.write value
-  buffer[buffer.length - 1 ] = 0
-  buffer
-
-decodeKeyName = (buffer) ->
-  for i in [0...buffer.length]
-    if buffer[i] == 0
-      return [i + 1, buffer.toString('utf8', 0, i)]
-
-encodeString = (value) ->
-  length = Buffer.byteLength(value)
-  buffer = new Buffer length + 5
-  Buffer.fromInt(length).copy buffer, 0, 0
-  buffer.write value, 4
-  buffer[buffer.length - 1 ] = 0
-  buffer
-
-decodeString = (buffer) ->
-  length = buffer.toInt()
-  buffer.toString 'utf8', 4, 4 + length
-
-encodeBoolean = (value) ->
-  if value then new Buffer [1] else new Buffer [0]
-
-decodeBoolean = (buffer) ->
-  not not buffer[0]
-
-encodeInt = (value) ->
-  Buffer.fromInt(value)
-
-decodeInt = (buffer) ->
-  buffer.toInt()
-
-encodeLong = (value) ->
-  Buffer.fromLong(value)
-
-decodeLong = (value) ->
-  buffer.toLong()
-
-encodeFloat = (value) ->
-  Buffer.fromDouble value
-
-decodeFloat = (buffer) ->
-  buffer.toDouble()
-
-encodeDate = (value) ->
-  Buffer.fromLong(value.getTime())
-
-decodeDate = (buffer) ->
-  new Date(buffer.toLong())
-
-encodeBinary = (source) ->
-  target = new Buffer source.length + 5
-  Buffer.fromInt(source.length).copy target, 0, 0
-  target[4] = 0
-  source.copy target, 5, 0
-  target
-
-decodeBinary = (source) ->
-  length = source.toInt()
-  target = new Buffer length
-  source.copy target, 0, 5, 5 + length
-  target
-
-encodeObjectID = (value) ->
-  id = new Buffer 12
-  value.id.copy id, 0, 0, 11
-  id
-
-decodeObjectID = (buffer) ->
-  id = new Buffer 12
-  buffer.copy id, 0, 0, 11
-  new ObjectID id
-
-encodeDocument = (value) ->
-  items = []
-  length = 0
-  if value instanceof Array
-    for val, i in value
-      item = encodeElement String(i), val
-      length += item.length
-      items.push item
+float_to_buffer = (v) ->
+  mLen  = 52
+  eLen  = 11
+  eMax  = (1 << eLen) - 1
+  eBias = eMax >> 1
+  s     = if v < 0 then 1 else 0
+  v = Math.abs v
+  if isNaN v or v == Infinity
+    m = if isNaN v then 1 else 0
+    e = eMax
   else
-    for key, val of value
-      item = encodeElement key, val
-      length += item.length
-      items.push item
-  buffer = new Buffer length + 5
-  Buffer.fromInt(length).copy buffer, 0, 0
-  i = 4
-  for item in items
-    item.copy buffer, i, 0, item.length
-    i += item.length
-  buffer[buffer.length - 1] = 0
-  buffer
-
-decodeDocument = (buffer, array) ->
-  length = buffer.toInt()
-  i = 4
-  if array
-    value = []
-  else
-    value = {}
-  while i < buffer.length - 1
-    [size, type, key, val] = decodeElement buffer.slice i
-    if array
-      value.push val
+    e = Math.floor Math.log(v) / Math.LN2
+    if v * (c = Math.pow(2, -e)) < 1
+      e--
+      c *= 2
+    if v * c >= 2
+      e++
+      c /= 2
+    if e + eBias >= eMax
+      m = 0
+      e = eMax
+    else if e + eBias >= 1
+      m = (v * c - 1) * Math.pow 2, mLen
+      e = e + eBias
     else
-      value[key] = val
-    i += size
-  value
+      m = v * Math.pow(2, eBias - 1) * Math.pow(2, mLen)
+      e = 0
+  i = 0
+  b = new Buffer 8
+  while mLen >= 8
+    b[i++] = m & 0xff
+    m /= 256
+    mLen -= 8
+  e = (e << mLen) | m
+  eLen += mLen
+  while eLen > 0
+    b[i++] = e & 0xff
+    e /= 256
+    eLen -= 8
+  b[i - 1] |= s * 128
+  b
 
-encodeElement = (key, val) ->
-  switch typeof val
-    when 'number'
-      if Math.floor(val) == val
-        if _min_int <= val <= _max_int
-          type = _type_int
-          buf = Buffer.fromInt val
-        else
-          type = _type_long
-          buf = Buffer.fromLong val
+buffer_to_float = (b) ->
+  mLen  = 52
+  eLen  = 11
+  eMax  = (1 << eLen) - 1
+  eBias = eMax >> 1
+  nBits = -7
+  i     = 7
+  s     = b[i--]
+  e     = s & ((1 << (-nBits)) - 1)
+  s    >>= (-nBits)
+  nBits += eLen
+  while nBits > 0
+    e = e * 256 + b[i--]
+    nBits -= 8
+  m = e & ((1 << (-nBits)) - 1)
+  e >>= (-nBits)
+  nBits += mLen
+  while nBits > 0
+    m = m * 256 + b[i--]
+    nBits -= 8
+  switch e
+    when 0
+      e = 1 - eBias
+    when eMax
+      return if m then NaN else ((if s then -1 else 1) * Infinity)
+    else
+      m += Math.pow 2, mLen
+      e -= eBias
+  (if s then -1 else 1) * m * Math.pow 2, e - mLen
+
+int32_to_buffer = (v) ->
+  v = _int_min if v < _int_min
+  v = _int_max if v > _int_max
+  b = new Buffer 4
+  for i in [0..3]
+    b[i] = v & 0xff
+    v >>= 8
+  b
+
+buffer_to_int32 = (b) ->
+  v = 0
+  f = 1
+  for i in [0..3]
+    v += b[i] * f
+    f *= 256
+  if v & _int_min
+    v -= _int_top
+  v
+
+# 64-bit integer coding only supported reliably up to somewhere around (+/-) 2^53
+int64_to_buffer = (v) ->
+  neg = false
+  neg = true if v < 0
+  v = Math.abs v
+  b = new Buffer 8
+  s = v.toString(16)
+  s = '0' + s while s.length < 16
+  for i in [0..15] by 2
+    b[i / 2] = parseInt(s.substr(i, 2), 16)
+  b[0] |= 128 if neg
+  b
+
+buffer_to_int64 = (b) ->
+  neg = b[0] & 128
+  b[0] -= 128 if neg
+  v = parseInt buffer_to_hex(b), 16
+  v = -v if neg
+  v
+
+buffer_to_hex = (b) ->
+  ((if b[i] < 16 then '0' else '') + b[i].toString 16 for i in [0...b.length]).join('')
+
+buffer_to_array = (b) ->
+  b[i] for i in [0...b.length]
+
+reverse_buffer = (b) ->
+  t = new Buffer b.length
+  b.copy t, b.length - i - 1, i, i + 1 for i in [0...b.length]
+  t
+
+_machine_id = int32_to_buffer(Math.floor(Math.random() * 0xffffff)).slice(0, 3)
+_process_id = int32_to_buffer(process.pid).slice(0, 2)
+_oid_index  = 0
+
+class BSONBuffer extends Buffer
+  toHex: ->
+    buffer_to_hex @
+
+  toArray: ->
+    buffer_to_array @
+
+  value: ->
+    @toHex()
+
+  toString: ->
+    @value()
+
+class BSONKey extends BSONBuffer
+  constructor: (value) ->
+    if value instanceof Buffer
+      for i in [0...value.length]
+        if value[i] == 0
+          super value.parent, i + 1, value.offset
+          break
+    else
+      value = value.toString()
+      super Buffer.byteLength(value) + 1
+      @write value
+      @[@length - 1] = 0
+
+  value: ->
+    @slice(0).toString 'utf8', 0, @length - 1
+
+class BSONFloat extends BSONBuffer
+  type: 0x01
+
+  constructor: (value) ->
+    if typeof value == 'number'
+      value = float_to_buffer value
+    super value.parent, 8, value.offset
+
+  value: ->
+    buffer_to_float @
+
+class BSONString extends BSONBuffer
+  type: 0x02
+
+  constructor: (value) ->
+    if value instanceof Buffer
+      super value.parent, buffer_to_int32(value) + 5, value.offset
+    else
+      length = Buffer.byteLength(value)
+      super length + 5
+      int32_to_buffer(length).copy @
+      @write value, 4
+      @[@length - 1] = 0
+
+  value: ->
+    @slice(0).toString 'utf8', 4, @length - 1
+
+class BSONObjectID extends BSONBuffer
+  type: 0x07
+
+  constructor: (value) ->
+    if value
+      if value instanceof Buffer
+        super value.parent, 12, value.offset
+      else if typeof value == 'string' and /^[0-9a-fA-F]{24}$/.test
+        super 12
+        for i in [0..23] by 2
+          @[i / 2] = parseInt(value.substr(i, 2), 16)
       else
-        type = _type_float
-        buf = Buffer.fromDouble val
-  key = encodeKeyName key
-  buffer = new Buffer 1 + key.length + buf.length
-  buffer[0] = type
-  key.copy buffer, 1, 0
-  buf.copy buffer, 1 + key.length, 0
-  buffer
+        throw Error 'unsupported ObjectID initializer'
+    else
+      super 12
+      reverse_buffer(int32_to_buffer(Math.floor(new Date().getTime() / 1000))).copy @
+      _machine_id.copy @, 4
+      _process_id.copy @, 7
+      reverse_buffer(int32_to_buffer(_oid_index++)).slice(1).copy @, 9
 
-decodeElement = (buffer) ->
-  type        = buffer[0]
-  [size, key] = decodeKeyName buffer.slice 1
-  buffer      = buffer.slice 1 + size
-  switch type
-    when _type_int
-      val = buffer.toInt()
-    when _type_long
-      val = buffer.toLong()
-    when _type_float
-      val = buffer.toFloat()
-  [key, val]
+  value: ->
+    @toHex()
 
-# p decodeElement(encodeElement('foo', 1.1))
+class BSONBoolean extends BSONBuffer
+  type: 0x08
+
+  constructor: (value) ->
+    if value instanceof Buffer
+      super value.parent, 1, value.offset
+    else
+      if value then super [1] else super [0]
+
+  value: ->
+    not not @[0]
+
+class BSONDate extends BSONBuffer
+  type: 0x09
+
+  constructor: (value) ->
+    value ?= new Date
+    if value instanceof Date
+      value = int64_to_buffer value.getTime()
+    super value.parent, 8, value.offset
+
+  value: ->
+    new Date(buffer_to_int64 @)
+
+class BSONInt32 extends BSONBuffer
+  type: 0x10
+
+  constructor: (value) ->
+    if typeof value == 'number'
+      value = int32_to_buffer value
+    super value.parent, 4, value.offset
+
+  value: ->
+    buffer_to_int32 @
+
+class BSONInt64 extends BSONBuffer
+  type: 0x12
+
+  constructor: (value) ->
+    if typeof value == 'number'
+      value = int64_to_buffer value
+    super value.parent, 8, value.offset
+
+  value: ->
+    buffer_to_int64 @
+
+class BSONElement extends BSONBuffer
+  constructor: (args...) ->
+    if args[0] instanceof Buffer
+    else
+      switch typeof args[1]
+        when 'boolean'
+          v = new BSONBoolean args[1]
+        when 'number'
+          v = new BSONFloat args[1]
+        when 'string'
+          v = new BSONString args[1]
+        when 'object'
+          if args[1] instanceof Date
+            v = new BSONDate args[1]
+          else if args[1] instanceof Array
+            v = new BSONArray args[1]
+          else
+            v = new BSONDocument args[1]
+      throw Error 'unsupported bson value' if not v?
+      k = new BSONKey args[0]
+      super 1 + k.length + v.length
+      @type = v.type
+      @[0] = @type
+      k.copy @, 1
+      v.copy @, 1 + k.length
+
+  key: ->
+    return @_key if @_key?
+    @_key = new BSONKey(@slice 1).value()
+
+  value: ->
+    return @_value if @_value
+    @_value = (new _type[@type](@slice 1 + (new BSONKey(@slice 1)).length)).value()
+
+class BSONDocument extends BSONBuffer
+  type: 0x05
+
+  constructor: (value) ->
+    if value instanceof Buffer
+      super value.parent, buffer_to_int32(value), value.offset
+    else
+      @_value = value
+      els = []
+      if @ instanceof BSONArray
+        els.push new BSONElement i, v for v, i in value
+      else
+        els.push new BSONElement k, v for k, v of value
+      length = 5
+      length += el.length for el in els
+      super length
+      int32_to_buffer(length).copy @
+      i = 4
+      for el in els
+        el.copy @, i
+        i += el.length
+      @[@length - 1] = 0
+
+  value: ->
+    return @_value if @_value
+    @_value = if @ instanceof BSONArray then [] else {}
+    i = 4
+    while @[i]
+      key = new BSONKey(@slice i + 1)
+      val = (new _type[@[i]] @slice i + key.length + 1)
+      if @ instanceof BSONArray
+        @_value[parseInt key] = val.value()
+      else
+        @_value[key] = val.value()
+      i += 1 + key.length + val.length
+    @_value
+
+class BSONArray extends BSONDocument
+  type: 0x04
+
+_type =
+  0x01: BSONFloat
+  0x02: BSONString
+  0x04: BSONArray
+  0x05: BSONDocument
+  0x07: BSONObjectID
+  0x08: BSONBoolean
+  0x09: BSONDate
+  0x10: BSONInt32
+  0x12: BSONInt64
+
+module.exports =
+  _private:
+    float_to_buffer: float_to_buffer
+    buffer_to_float: buffer_to_float
+    int32_to_buffer: int32_to_buffer
+    buffer_to_int32: buffer_to_int32
+    int64_to_buffer: int64_to_buffer
+    buffer_to_int64: buffer_to_int64
+    buffer_to_hex:   buffer_to_hex
+    reverse_buffer:  reverse_buffer
+    BSONKey:         BSONKey
+    BSONFloat:       BSONFloat
+    BSONString:      BSONString
+    BSONObjectID:    BSONObjectID
+    BSONBoolean:     BSONBoolean
+    BSONDate:        BSONDate
+    BSONInt32:       BSONInt32
+    BSONInt64:       BSONInt64
+    BSONElement:     BSONElement
+    BSONDocument:    BSONDocument
+
+  # public
+
+  ObjectID:    BSONObjectID
+  serialize:   (object) -> new BSONDocument object
+  deserialize: (buffer) -> new BSONDocument(buffer).value()
+
