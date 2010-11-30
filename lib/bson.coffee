@@ -110,6 +110,7 @@ buffer_to_int64 = (b) ->
   neg = b[0] & 128
   b[0] -= 128 if neg
   v = parseInt buffer_to_hex(b), 16
+  b[0] += 128 if neg
   v = -v if neg
   v
 
@@ -173,10 +174,10 @@ class BSONString extends BSONBuffer
 
   constructor: (value) ->
     if value instanceof Buffer
-      super value.parent, buffer_to_int32(value) + 5, value.offset
+      super value.parent, buffer_to_int32(value) + 4, value.offset
     else
-      length = Buffer.byteLength(value)
-      super length + 5
+      length = Buffer.byteLength(value) + 1
+      super length + 4
       int32_to_buffer(length).copy @
       @write value, 4
       @[@length - 1] = 0
@@ -231,6 +232,18 @@ class BSONDate extends BSONBuffer
   value: ->
     new Date(buffer_to_int64 @)
 
+class BSONNull extends BSONBuffer
+  type: 0x0A
+
+  constructor: (value) ->
+    if value instanceof Buffer
+      super value.parent, 0, value.offset
+    else
+      super 0
+
+  value: ->
+    null
+
 class BSONInt32 extends BSONBuffer
   type: 0x10
 
@@ -269,6 +282,8 @@ class BSONElement extends BSONBuffer
             v = new BSONDate args[1]
           else if args[1] instanceof Array
             v = new BSONArray args[1]
+          else if args[1] instanceof BSONObjectID
+            v = args[1]
           else
             v = new BSONDocument args[1]
       throw Error 'unsupported bson value' if not v?
@@ -315,8 +330,13 @@ class BSONDocument extends BSONBuffer
     @_value = if @ instanceof BSONArray then [] else {}
     i = 4
     while @[i]
+      # p i
+      # p @
+      # p @slice i + 1
+      # p @[i]
       key = new BSONKey(@slice i + 1)
-      val = (new _type[@[i]] @slice i + key.length + 1)
+      throw Error 'unsupported bson value' if not _type[@[i]]
+      val = new _type[@[i]] @slice i + key.length + 1
       if @ instanceof BSONArray
         @_value[parseInt key] = val.value()
       else
@@ -335,6 +355,7 @@ _type =
   0x07: BSONObjectID
   0x08: BSONBoolean
   0x09: BSONDate
+  0x0A: BSONNull
   0x10: BSONInt32
   0x12: BSONInt64
 
@@ -354,6 +375,7 @@ module.exports =
     BSONObjectID:    BSONObjectID
     BSONBoolean:     BSONBoolean
     BSONDate:        BSONDate
+    BSONNull:        BSONNull
     BSONInt32:       BSONInt32
     BSONInt64:       BSONInt64
     BSONElement:     BSONElement
@@ -364,4 +386,15 @@ module.exports =
   ObjectID:    BSONObjectID
   serialize:   (object) -> new BSONDocument object
   deserialize: (buffer) -> new BSONDocument(buffer).value()
+  Key:         BSONKey
+  Float:       BSONFloat
+  String:      BSONString
+  ObjectID:    BSONObjectID
+  Boolean:     BSONBoolean
+  Date:        BSONDate
+  Null:        BSONNull
+  Int32:       BSONInt32
+  Int64:       BSONInt64
+  Element:     BSONElement
+  Document:    BSONDocument
 

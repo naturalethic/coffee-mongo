@@ -57,7 +57,7 @@ runner.mettle ->
   assert.equal v.value(), 'name'
   @tell 'BSONString'
   v = new _.BSONString 'hello'
-  assert.equal v.toHex(), '0500000068656c6c6f00'
+  assert.equal v.toHex(), '0600000068656c6c6f00'
   assert.equal v.value(), 'hello'
   @tell 'BSONObjectID'
   v = new _.BSONObjectID()
@@ -69,6 +69,10 @@ runner.mettle ->
   v = new _.BSONDate d
   assert.equal v.toHex(), '0000012c9b914875'
   assert.equal v.value().getTime(), d.getTime()
+  @tell 'BSONNull'
+  v = new _.BSONNull(new _.BSONNull)
+  assert.equal v.toHex(), ''
+  assert.equal v.value(), null
   @tell 'BSONElement'
   e = new _.BSONElement 'really?', true
   assert.equal e.type, 0x08
@@ -101,4 +105,3 @@ runner.mettle ->
   assert.deepEqual bson.deserialize(bson.serialize(obj)), obj
   @next()
 
-runner.mettle ->

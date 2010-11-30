@@ -1,12 +1,12 @@
 global.util     = require 'util'
 global.put      = (args...) -> util.print a for a in args
-global.puts     = (args...) -> put args.join '\n'
+global.puts     = (args...) -> put args.join('\n') + '\n'
 global.p        = (args...) -> puts util.inspect(a, true, null) for a in args
 global.pl       = (args...) -> put args.join(', ') + '\n'
 global.assert   = require 'assert'
 global.ansi     = require './ansi'
 global.runner   = require './runner'
-# global.mongo    = require '../lib/mongo'
+global.mongo    = require '../lib/mongo'
 global.bson     = require '../lib/bson'
 
 global.timeout  = (time, next) -> setTimeout next, time
@@ -19,7 +19,7 @@ process.on 'exit', ->
 
 runner.dir __dirname
 runner.load 'bson'
-# runner.load 'mongo'
+runner.load 'mongo'
 # runner.load 'congo'
 runner.next()
 

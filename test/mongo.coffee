@@ -45,9 +45,9 @@ runner.mettle ->
     assert.equal error, null
     doc_given._id = 'factory'
     assert.deepEqual doc_given, doc_taken
-    @db.remove 'Country', { _id: 'factory' }, (error) =>
+    db.remove 'Country', { _id: 'factory' }, (error) =>
       assert.equal error, null
-      @db.find 'Country', { _id: 'factory' }, (error, documents) =>
+      db.find 'Country', { _id: 'factory' }, (error, documents) =>
         assert.equal documents.length, 0
         db.close()
         @next()
@@ -98,8 +98,10 @@ runner.mettle ->
   @tell 'find and modify'
   @db.insert 'fm', { key: 'test' }, (id) =>
     @db.modify 'fm', { new: true, query: { key: 'test' }, update: { $inc: { value: 1 }}, fields: { value: 1 }}, (error, document) =>
+      assert.equal error, null
       assert.equal document.value, 1
       @db.modify 'fm', { new: true, query: { key: 'test' }, update: { $inc: { value: 1 }}, fields: { value: 1 }}, (error, document) =>
+        assert.equal error, null
         assert.equal document.value, 2
         @db.remove 'fm', =>
           @next()

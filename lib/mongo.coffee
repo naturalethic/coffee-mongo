@@ -1,12 +1,5 @@
 net      = require 'net'
-util     = require 'util'
-put      = (args...) -> util.print(a) for a in args
-puts     = (args...) -> put(a + '\n') for a in args
-p        = (args...) -> puts(util.inspect(a, true, null)) for a in args
-binary   = require './vendor/binary'
-_bson    = require './vendor/bson'
-ObjectID = _bson.ObjectID
-bson     = _bson.BSON
+bson     = require './bson'
 
 # Represents a Mongo database
 #
@@ -28,7 +21,7 @@ class Database
   constructor: (@name, args...) ->
     @host = 'localhost'
     @port = 27017
-    @idfactory = (collection, next) -> next null, new ObjectID
+    @idfactory = (collection, next) -> next null, new bson.ObjectID
     @connections = []
     for arg in args
       switch typeof arg
@@ -202,7 +195,7 @@ class Database
   #   error      : error
   #   document   : the modified document
   modify: (collection, options, next) ->
-    options.findandmodify = collection
+    options.findAndModify = collection
     options.query  ?= {}
     options.sort   ?= {}
     options.remove ?= false
@@ -211,12 +204,12 @@ class Database
     options.fields ?= {}
     options.upsert ?= false
     @command 'findandmodify', options, (error, document) ->
-      next error, document.value
+      next error, (if document then document.value else null)
 
   command: (command, options, next) ->
-    options.__command__ = 'findandmodify'
     @connection (error, connection) =>
       connection.retain()
+      p new bson.Document(options).value()
       connection.send (@compose '$cmd', 2004, 0, 0, 1, options), (error, data) =>
         connection.release()
         if next
@@ -241,42 +234,62 @@ class Database
   #       proceed()
 
   # Compose a mongo binary message
-  compose: (collection, code, flags, items...) ->
-    data = binary.fromInt(flags) + binary.encode_cstring(@name + '.' + collection)
-    for item in items
+  compose: (collection, code, payload...) ->
+    composition = [
+      new bson.Int32 0                         # message length
+      new bson.Int32 0                         # request id
+      new bson.Int32 0                         # response to id
+      new bson.Int32 code                      # op code
+      new bson.Int32 payload.shift()           # (depends on op)
+      new bson.Key   @name + '.' + collection  # dbname.collectionname
+    ]
+    for item in payload
       if typeof item == 'object'
-        data += bson.serialize item
+        composition.push new bson.Document item
       else
-        data += binary.fromInt item
-    binary.fromInt(data.length + 4 * 4) + binary.fromInt(0) + binary.fromInt(0) + binary.fromInt(code) + data
+        composition.push new bson.Int32 item
+    length = 0
+    for item in composition
+      length += item.length
+    composition[0] = new bson.Int32 length     # update the message length
+    buffer = new Buffer length
+    i = 0
+    for item in composition
+      item.copy buffer, i
+      i += item.length
+    buffer
 
-  # Deompose a mongo binary message
-  decompose: (data) ->
+  # Decompose a mongo binary message
+  decompose: (buffer) ->
     i = 4 * 3
-    code = binary.toInt(data.substr i)
+    code = (new bson.Int32 buffer.slice i).value()
     i += 4
     if code == 1
-      flags = binary.toInt(data.substr i)
+      flags = (new bson.Int32 buffer.slice i).value()
       i += 4
-      cursor = binary.toInt64(data.substr i)
+      cursor = (new bson.Int64 buffer.slice i).value()
       i += 8
-      start = binary.toInt(data.substr i)
+      start = (new bson.Int32 buffer.slice i).value()
       i += 4
-      count = binary.toInt(data.substr i)
+      count = (new bson.Int32 buffer.slice i).value()
       i += 4
       documents = []
       while count--
-        documents.push bson.deserialize(data.substr i)
-        i += binary.toInt(data.substr i)
+        document = new bson.Document buffer.slice i
+        documents.push document.value()
+        i += document.length
     else
-      puts 'Unsupported response', code
+      throw Error "unsupported response code: #{code}"
     documents
+
+_buffer_grow_size = 10000
 
 class Connection
   constructor: (@host, @port) ->
     @stream = null
     @available = false
-    @buffer = ''
+    @buffer = new Buffer _buffer_grow_size
+    @marker = 0
 
   retain: ->
     @available = false
@@ -289,22 +302,29 @@ class Connection
     @stream.on 'connect', =>
       next null, @
     @stream.on 'data', (data) =>
-      @buffer += data.toString 'binary'
-      if binary.toInt(@buffer) == @buffer.length
+      # p 'RECEIVING'
+      while @buffer.length < @marker + data.length
+        buffer = new Buffer @buffer.length + _buffer_grow_size
+        @buffer.copy buffer
+        @buffer = buffer
+      data.copy @buffer, @marker
+      @marker += data.length
+      if @marker > 3 and new bson.Int32(@buffer).value() == @marker
         @next null, @buffer if @next
-        @buffer = ''
+        @marker = 0
     @stream.on 'close', =>
     @stream.on 'end', =>
     @stream.on 'close', =>
     @stream.on 'timeout', =>
 
   send: (data, next) ->
+    # p 'SENDING'
     @next = next
-    @stream.write data, 'binary'
+    @stream.write data
 
   close: ->
     @stream.end()
 
 module.exports =
-  ObjectID: ObjectID
+  # ObjectID: ObjectID
   Database: Database
