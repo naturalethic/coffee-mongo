@@ -6,8 +6,8 @@ global.pl       = (args...) -> put args.join(', ') + '\n'
 global.assert   = require 'assert'
 global.ansi     = require './ansi'
 global.runner   = require './runner'
-global.mongo    = require '../lib/mongo'
 global.bson     = require '../lib/bson'
+global.mongo    = require '../lib/mongo'
 
 global.timeout  = (time, next) -> setTimeout next, time
 global.interval = (time, next) -> setInterval next, time
@@ -20,6 +20,5 @@ process.on 'exit', ->
 runner.dir __dirname
 runner.load 'bson'
 runner.load 'mongo'
-# runner.load 'congo'
 runner.next()
 
