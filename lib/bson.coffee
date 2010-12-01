@@ -340,10 +340,6 @@ class BSONDocument extends BSONBuffer
     @_value = if @ instanceof BSONArray then [] else {}
     i = 4
     while @[i]
-      # p i
-      # p @
-      # p @slice i + 1
-      # p @[i]
       key = new BSONKey(@slice i + 1)
       throw Error 'unsupported bson value' if not _type[@[i]]
       val = new _type[@[i]] @slice i + key.length + 1
