@@ -195,7 +195,7 @@ class Database
   #   error      : error
   #   document   : the modified document
   modify: (collection, options, next) ->
-    options.findAndModify = collection
+    options.findandmodify = collection
     options.query  ?= {}
     options.sort   ?= {}
     options.remove ?= false
@@ -204,13 +204,21 @@ class Database
     options.fields ?= {}
     options.upsert ?= false
     @command 'findandmodify', options, (error, document) ->
+      if document and document.errmsg
+        error = { code: document.code, message: document.errmsg }
+        document = null
       next error, (if document then document.value else null)
 
   command: (command, options, next) ->
+    keys   = [ command ]
+    values = [ options[command] ]
+    delete options[command]
+    for k, v of options
+      keys.push k
+      values.push v
     @connection (error, connection) =>
       connection.retain()
-      p new bson.Document(options).value()
-      connection.send (@compose '$cmd', 2004, 0, 0, 1, options), (error, data) =>
+      connection.send (@compose '$cmd', 2004, 0, 0, 1, [keys, values]), (error, data) =>
         connection.release()
         if next
           document = (@decompose data)[0]
@@ -244,7 +252,9 @@ class Database
       new bson.Key   @name + '.' + collection  # dbname.collectionname
     ]
     for item in payload
-      if typeof item == 'object'
+      if item instanceof Array
+        composition.push new bson.Document item[0], item[1]
+      else if typeof item == 'object'
         composition.push new bson.Document item
       else
         composition.push new bson.Int32 item
@@ -302,7 +312,6 @@ class Connection
     @stream.on 'connect', =>
       next null, @
     @stream.on 'data', (data) =>
-      # p 'RECEIVING'
       while @buffer.length < @marker + data.length
         buffer = new Buffer @buffer.length + _buffer_grow_size
         @buffer.copy buffer
@@ -318,7 +327,15 @@ class Connection
     @stream.on 'timeout', =>
 
   send: (data, next) ->
-    # p 'SENDING'
+    # for i in [0...data.length] by 20
+    #   put ((if n < 10 then '0' else '') + n.toString(16) for n in data.slice(i, Math.min(i + 20, data.length))).join(' ')
+    #   put '    '
+    #   for c in data.slice(i, Math.min(i + 20, data.length))
+    #     if 128 > c > 32
+    #       put String.fromCharCode c + ' '
+    #     else
+    #       put c + ' '
+    #   puts ''
     @next = next
     @stream.write data
 

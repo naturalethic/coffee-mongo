@@ -102,6 +102,7 @@ runner.mettle ->
   assert.deepEqual (new _.BSONDocument(new _.BSONDocument obj)).value(), obj
   obj = { arr: [ 1, 2, 3, 'foo', 'bar', 5.8, obj: { x: 1, date: new Date } ] }
   assert.deepEqual (new _.BSONDocument(new _.BSONDocument obj)).value(), obj
+  obj = { query: { key: 'test' }, new: true, fields: { value: 1 }, update: { '$inc': { value: 1 } }, findAndModify: 'fm' }
   assert.deepEqual bson.deserialize(bson.serialize(obj)), obj
   @next()
 

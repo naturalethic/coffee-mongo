@@ -274,7 +274,10 @@ class BSONElement extends BSONBuffer
         when 'boolean'
           v = new BSONBoolean args[1]
         when 'number'
-          v = new BSONFloat args[1]
+          if _int_min <= v <= _int_max
+            v = new BSONInt32 args[1]
+          else
+            v = new BSONFloat args[1]
         when 'string'
           v = new BSONString args[1]
         when 'object'
@@ -302,10 +305,11 @@ class BSONElement extends BSONBuffer
     return @_value if @_value
     @_value = (new _type[@type](@slice 1 + (new BSONKey(@slice 1)).length)).value()
 
+# If passed two arrays, they are keys and values (for ensuring a certain order)
 class BSONDocument extends BSONBuffer
-  type: 0x05
+  type: 0x03
 
-  constructor: (value) ->
+  constructor: (value, value2) ->
     if value instanceof Buffer
       super value.parent, buffer_to_int32(value), value.offset
     else
@@ -314,7 +318,13 @@ class BSONDocument extends BSONBuffer
       if @ instanceof BSONArray
         els.push new BSONElement i, v for v, i in value
       else
-        els.push new BSONElement k, v for k, v of value
+        if value2?
+          @_value = {}
+          for i in [0...value.length]
+            @_value[value[i]] = value2[i]
+            els.push new BSONElement value[i], value2[i]
+        else
+          els.push new BSONElement k, v for k, v of value
       length = 5
       length += el.length for el in els
       super length
@@ -350,8 +360,8 @@ class BSONArray extends BSONDocument
 _type =
   0x01: BSONFloat
   0x02: BSONString
+  0x03: BSONDocument
   0x04: BSONArray
-  0x05: BSONDocument
   0x07: BSONObjectID
   0x08: BSONBoolean
   0x09: BSONDate
