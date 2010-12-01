@@ -166,7 +166,7 @@ class Database
     error = (@decompose data)[0]
     if error.err then { code: error.code, message: error.err } else null
 
-  # Remove documents from a collection matching a query
+  # Performs atomic find/modify operation on a single document
   #
   # Takes:
   #   collection : collection name
