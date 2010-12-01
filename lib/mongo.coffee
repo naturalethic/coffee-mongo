@@ -128,25 +128,6 @@ class Database
     @find collection, query, (error, documents) ->
       if documents.length > 0 then next error, documents[0] else next error, null
 
-  # XXX: Come back to these for result limits (path)
-  # find: (collection, query, args..., next) ->
-  #   path = if args.length > 0 then { (args[0]): 1 } else {}
-  #   @connection (connection) =>
-  #     connection.retain()
-  #     connection.send (@compose collection, 2004, 0, 0, 0, query, path), (data) =>
-  #       documents = @decompose data
-  #       @last_error connection, (error) ->
-  #         connection.release()
-  #         puts 'Mongo error: ' + error.err if error.err?
-  #         next(documents) if next
-  # find_one: (collection, query, args..., next) ->
-  #   @find collection, query, args..., (documents) ->
-  #     if documents.length > 0 then next documents[0] else next null
-
-  # exists: (collection, id, path, next) ->
-  #   @find collection, { _id: id, (path): { $exists: true } }, '_id', (documents) ->
-  #     if documents.length > 0 then next true else next false
-
   # Remove all documents from a collection
   #
   # Takes:
@@ -238,18 +219,6 @@ class Database
           else
             next null, document
 
-  # XXX: Doesn't go in here, move sequences somewhere else
-  # sequence: (key, next) ->
-  #   proceed = =>
-  #     @modify '__sequence__', { new: true, query: { key: key }, update: { $inc: { value: 1 }}, fields: { value: 1 }}, (result) =>
-  #       next result.value
-  #   @find_one '__sequence__', { key: key }, (document) =>
-  #     if not document
-  #       @insert '__sequence__', { _id: new ObjectID, key: key }, (id) =>
-  #         proceed()
-  #     else
-  #       proceed()
-
   # Compose a mongo binary message
   compose: (collection, code, payload...) ->
     composition = [
@@ -336,15 +305,6 @@ class Connection
     @stream.on 'timeout', =>
 
   send: (data, next) ->
-    # for i in [0...data.length] by 20
-    #   put ((if n < 10 then '0' else '') + n.toString(16) for n in data.slice(i, Math.min(i + 20, data.length))).join(' ')
-    #   put '    '
-    #   for c in data.slice(i, Math.min(i + 20, data.length))
-    #     if 128 > c > 32
-    #       put String.fromCharCode c + ' '
-    #     else
-    #       put c + ' '
-    #   puts ''
     @next = next
     @stream.write data
 
