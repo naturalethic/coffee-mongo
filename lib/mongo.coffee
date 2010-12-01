@@ -209,6 +209,15 @@ class Database
         document = null
       next error, (if document then document.value else null)
 
+  # Runs a command
+  #
+  # Takes:
+  #   command    : command name, must also be set in the options
+  #   options    : the full command document
+  #
+  # Gives:
+  #   error      : error
+  #   document   : result document
   command: (command, options, next) ->
     keys   = [ command ]
     values = [ options[command] ]
