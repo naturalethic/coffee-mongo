@@ -194,21 +194,21 @@ class Database
   #
   # Takes:
   #   command    : command name, must also be set in the options
-  #   options    : the full command document
+  #   document   : the full command document
   #
   # Gives:
   #   error      : error
   #   document   : result document
-  command: (command, options, next) ->
-    keys   = [ command ]
-    values = [ options[command] ]
-    delete options[command]
-    for k, v of options
-      keys.push k
-      values.push v
+  command: (command, document, next) ->
+    # Rebuild document object to ensure command is first in key order
+    cdoc = {}
+    cdoc[command] = if document[command]? then document[command] else 1
+    delete document[command]
+    for k, v of document
+      cdoc[k] = v
     @connection (error, connection) =>
       connection.retain()
-      connection.send (@compose '$cmd', 2004, 0, 0, 1, [keys, values]), (error, data) =>
+      connection.send (@compose '$cmd', 2004, 0, 0, 1, cdoc), (error, data) =>
         connection.release()
         if next
           document = (@decompose data)[0]
