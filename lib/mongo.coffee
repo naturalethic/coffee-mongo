@@ -202,18 +202,20 @@ class Database
   #
   # Takes:
   #   collection : collection name
-  #   key        : the key to index, may be deep
+  #   keys       : hash of keys to index (may be deep), value denotes unique
   #
   # Gives:
   #   error      : error
-  index: (collection, key, next) ->
-    document          = {}
-    document.name     = key.replace('.', '_') + '_'
-    document.ns       = @name + '.' + collection
-    document.key      = {}
-    document.key[key] = 1
-    @insert_without_id 'system.indexes', document, (error, document) =>
-      next error if next
+  index: (collection, keys, next) ->
+    for key, unique of keys
+      document          = {}
+      document.name     = key.replace('.', '_') + '_'
+      document.ns       = @name + '.' + collection
+      document.unique   = unique
+      document.key      = {}
+      document.key[key] = 1
+      @insert_without_id 'system.indexes', document, (error, document) =>
+        next error if next
 
   # Runs a command
   #

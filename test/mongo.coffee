@@ -76,7 +76,7 @@ runner.mettle ->
 
 runner.mettle ->
   @tell 'clear'
-  @db.clear 'Number', (error) =>
+  @db.remove 'Number', (error) =>
     assert.equal error, null
     @db.find_one 'Number', (error, document) =>
       assert.equal document, null
@@ -91,7 +91,7 @@ runner.mettle ->
       @db.find_one 'Pet', { species: 'Dog' }, (error, document) =>
         assert.equal error, null
         assert.equal document.name, 'Bitey'
-        @db.clear 'Pet', (error) =>
+        @db.remove 'Pet', (error) =>
           @next()
 
 runner.mettle ->
@@ -113,7 +113,7 @@ runner.mettle ->
               @db.find 'Pet', { species: 'Jackalope' }, (error, pets) =>
                 assert.equal error, null
                 assert.equal pets.length, 3
-                @db.clear 'Pet', (error) =>
+                @db.remove 'Pet', (error) =>
                   @next()
 
 runner.mettle ->
@@ -133,9 +133,9 @@ runner.mettle ->
   @iceland = { name: 'Iceland', population: 316252 }
   @db.insert 'Country', @iceland, (error, document) =>
     assert.equal error, null
-    @db.index 'Country', 'name', (error) =>
+    @db.index 'Country', {name: true}, (error) =>
       assert.equal error, null
-      @db.index 'Country', 'name', (error) =>
+      @db.index 'Country', {name: true}, (error) =>
         assert.equal error, null
         @db.find 'system.indexes', { name: 'name_' }, (error, indexes) =>
           assert.equal error, null
