@@ -312,5 +312,5 @@ class Connection
     @stream.end()
 
 module.exports =
-  # ObjectID: ObjectID
+  ObjectID: bson.ObjectID
   Database: Database
