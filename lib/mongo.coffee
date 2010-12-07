@@ -131,16 +131,6 @@ class Database
     @find collection, query, (error, documents) ->
       if documents.length > 0 then next error, documents[0] else next error, null
 
-  # Remove all documents from a collection
-  #
-  # Takes:
-  #   collection : collection name
-  #
-  # Gives:
-  #   error      : error
-  clear: (collection, next) ->
-    @remove collection, {}, next
-
   # Remove documents from a collection matching a query
   #
   # Takes:
