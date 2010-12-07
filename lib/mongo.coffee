@@ -66,12 +66,15 @@ class Database
       idfactory = (_, next) -> next null, document._id
     idfactory collection, (error, id) =>
       document._id = id
-      @connection (error, connection) =>
-        connection.retain()
-        connection.send (@compose collection, 2002, 0, document)
-        @last_error connection, (error, mongo_error) ->
-          connection.release()
-          next(mongo_error, document) if next
+      @insert_without_id collection, document, next
+
+  insert_without_id: (collection, document, next) ->
+    @connection (error, connection) =>
+      connection.retain()
+      connection.send (@compose collection, 2002, 0, document)
+      @last_error connection, (error, mongo_error) ->
+        connection.release()
+        next(mongo_error, document) if next
 
   # Updates documents in a collection
   #
@@ -188,27 +191,44 @@ class Database
       if document and document.errmsg
         error = { code: document.code, message: document.errmsg }
         document = null
-      next error, (if document then document.value else null)
+      next(error, (if document then document.value else null)) if next
+
+  # Adds an index against the key if one does not already exist
+  #
+  # Takes:
+  #   collection : collection name
+  #   key        : the key to index, may be deep
+  #
+  # Gives:
+  #   error      : error
+  index: (collection, key, next) ->
+    document          = {}
+    document.name     = key.replace('.', '_') + '_'
+    document.ns       = @name + '.' + collection
+    document.key      = {}
+    document.key[key] = 1
+    @insert_without_id 'system.indexes', document, (error, document) =>
+      next error if next
 
   # Runs a command
   #
   # Takes:
   #   command    : command name, must also be set in the options
-  #   options    : the full command document
+  #   document   : the full command document
   #
   # Gives:
   #   error      : error
   #   document   : result document
-  command: (command, options, next) ->
-    keys   = [ command ]
-    values = [ options[command] ]
-    delete options[command]
-    for k, v of options
-      keys.push k
-      values.push v
+  command: (command, document, next) ->
+    # Rebuild document object to ensure command is first in key order
+    cdoc = {}
+    cdoc[command] = if document[command]? then document[command] else 1
+    delete document[command]
+    for k, v of document
+      cdoc[k] = v
     @connection (error, connection) =>
       connection.retain()
-      connection.send (@compose '$cmd', 2004, 0, 0, 1, [keys, values]), (error, data) =>
+      connection.send (@compose '$cmd', 2004, 0, 0, 1, cdoc), (error, data) =>
         connection.release()
         if next
           document = (@decompose data)[0]
