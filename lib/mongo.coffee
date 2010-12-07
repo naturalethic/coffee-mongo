@@ -195,22 +195,45 @@ class Database
         document = null
       next(error, (if document then document.value else null)) if next
 
-  # Adds an index against the key if one does not already exist
+  # Add indexes against specified keys, ignoring those that already exist.
   #
   # Takes:
   #   collection : collection name
-  #   key        : the key to index, may be deep
+  #   keys       : hash of keys to index (may be deep), value denotes unique
   #
   # Gives:
   #   error      : error
-  index: (collection, key, next) ->
-    document          = {}
-    document.name     = key.replace('.', '_') + '_'
-    document.ns       = @name + '.' + collection
-    document.key      = {}
-    document.key[key] = 1
-    @insert_without_id 'system.indexes', document, (error, document) =>
-      next error if next
+  index: (collection, keys, next) ->
+    count = 0
+    count++ for k of keys
+    for key, unique of keys
+      document          = {}
+      document.name     = key.replace('.', '_') + '_'
+      document.ns       = @name + '.' + collection
+      document.unique   = unique
+      document.key      = {}
+      document.key[key] = 1
+      @insert_without_id 'system.indexes', document, (error, document) =>
+        next error if next and (error or not --count)
+
+  # Removes index for specified key
+  #
+  # Takes:
+  #   collection : collection name
+  #   key        : key for which to remove index
+  #
+  # Gives:
+  #   error      : error
+  removeIndex: (collection, key, next) ->
+    options = {}
+    options.dropIndexes = collection
+    options.index       = {}
+    options.index[key]  = 1
+    @command 'dropIndexes', options, (error, document) ->
+      if document and document.errmsg
+        error = { code: document.code, message: document.errmsg }
+        document = null
+      next(error, (if document then document.value else null)) if next
 
   # Runs a command
   #

@@ -115,11 +115,19 @@ runner.mettle ->
   @iceland = { name: 'Iceland', population: 316252 }
   @db.insert 'Country', @iceland, (error, document) =>
     assert.equal error, null
-    @db.index 'Country', 'name', (error) =>
+    @db.index 'Country', { name: true, population: false }, (error) =>
       assert.equal error, null
-      @db.index 'Country', 'name', (error) =>
+      @db.index 'Country', { name: false }, (error) =>
         assert.equal error, null
-        @db.find 'system.indexes', { name: 'name_' }, (error, indexes) =>
+        @db.find 'system.indexes', { ns: 'test.Country' }, (error, indexes) =>
           assert.equal error, null
-          assert.equal indexes.length, 1
-          @next()
+          assert.equal indexes.length, 3
+          @db.removeIndex 'Country', 'name', (error) =>
+            assert.equal error, null
+            @db.removeIndex 'Country', 'population', (error) =>
+              assert.equal error, null
+              @db.find 'system.indexes', { ns: 'test.Country' }, (error, indexes) =>
+                assert.equal error, null
+                assert.equal indexes.length, 1
+                @db.remove 'Country', =>
+                  @next()
