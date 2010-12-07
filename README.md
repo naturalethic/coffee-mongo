@@ -1,11 +1,12 @@
 coffee-mongo
-=====
+============
 
 Modeling library for use with [Node](http://nodejs.org/), [CoffeeScript](http://jashkenas.github.com/coffee-script/), and [Mongo](http://www.mongodb.org/).
 
 *This library can be compiled to Javascript for deployment without a dependency on CoffeeScript*
 
----
+*Requires 0.3.x branch of Node.js*
+
 
 Goal
 ----
