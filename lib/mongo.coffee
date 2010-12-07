@@ -78,35 +78,22 @@ class Database
 
   # Updates documents in a collection
   #
-  # XXX: implement upsert, or remove it from the documentation
+  # Updates always are assumed multi=true.  Upserts are not supported because
+  # we always want to specify our own _id.
   #
   # Takes:
   #   collection : collection name
   #   query      : query document (optional - if absent, updates all documents)
-  #   update     : document to replace found documents
-  #   options    : { multi: ..., upsert: ...} (optional)
-  #  *or*
-  #   collection :
-  #   document   : { query: ..., update: ..., multi: ..., upsert: ... }
+  #   update     : update operations document
   #
   # Gives:
   #   error      : error
   update: (collection, args..., next) ->
-    flags = 0
-    if args.length == 1 and args[0].update
-      query   = args[0].query  or {}
-      update  = args[0].update or {}
-      # flags  |= 0x1 if args[0].upsert
-      flags  |= 0x2 if args[0].multi
-    else
-      options = if args.length == 3 then args.pop() else {}
-      update  = args.pop() or {}
-      query   = args.pop() or {}
-      # flags  |= 0x1 if options.upsert
-      flags  |= 0x2 if options.multi
+    update  = args.pop() or {}
+    query   = args.pop() or {}
     @connection (error, connection) =>
       connection.retain()
-      connection.send (@compose collection, 2001, 0, flags, query, update)
+      connection.send (@compose collection, 2001, 0, 2, query, update)
       @last_error connection, (error, mongo_error) ->
         connection.release()
         next mongo_error if next
