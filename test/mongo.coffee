@@ -105,3 +105,17 @@ runner.mettle ->
         assert.equal document.value, 2
         @db.remove 'fm', =>
           @next()
+
+runner.mettle ->
+  @tell 'index'
+  @iceland = { name: 'Iceland', population: 316252 }
+  @db.insert 'Country', @iceland, (error, document) =>
+    assert.equal error, null
+    @db.index 'Country', 'name', (error) =>
+      assert.equal error, null
+      @db.index 'Country', 'name', (error) =>
+        assert.equal error, null
+        @db.find 'system.indexes', { name: 'name_' }, (error, indexes) =>
+          assert.equal error, null
+          assert.equal indexes.length, 1
+          @next()
