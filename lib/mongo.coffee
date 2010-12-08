@@ -261,6 +261,19 @@ class Database extends events.EventEmitter
         document = null
       next(error, (if document then document.value else null)) if next
 
+  # Runs a map/reduce command
+  #
+  # Takes:
+  #   collection : collection name
+  #   map        : map function
+  #   reduce     : reduce function
+  #
+  # Gives:
+  #   error      : error
+  #   document   : result document
+  mapReduce: (collection, map, reduce, next) ->
+    throw ReferenceError('NYI')
+
   # Runs a command
   #
   # Takes:
