@@ -38,8 +38,9 @@ runner.mettle ->
 
 runner.mettle ->
   @tell 'insert with custom id factory'
-  db = new mongo.Database 'test', (collection, next) ->
+  idfactory = (collection, next) ->
     next null, 'factory'
+  db = new mongo.Database 'test', { idfactory: idfactory }
   doc_given = { name: 'Iceland', population: 316252 }
   db.insert 'Country', doc_given, (error, doc_taken) =>
     assert.equal error, null

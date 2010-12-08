@@ -4,10 +4,12 @@ bson     = require './bson'
 # Represents a Mongo database
 #
 # Takes:
-#   name      : name of the database
-#   host      : host (optional, defaults to localhost)
-#   port      : port (optional, defaults to 27017)
-#   idfactory : a function that provides ids (optional, defaults to ObjectIDs)
+#   name        : name of the database
+#   options     : options hash
+#     host      :   default 'localhost'
+#     port      :   default 27017
+#     limit     :   default limit for find responses (default 100)
+#     idfactory :   a function that provides ids (default to ObjectID)
 #
 # An idfactory has the following interface:
 #
@@ -18,19 +20,13 @@ bson     = require './bson'
 #   error      : error, if any
 #   id         : a new unique id for the provided collection
 class Database
-  constructor: (@name, args...) ->
-    @host = 'localhost'
-    @port = 27017
-    @idfactory = (collection, next) -> next null, new bson.ObjectID
+  constructor: (@name, options) ->
+    options    = options or {}
+    @host      = options.localhost or 'localhost'
+    @port      = options.port      or 27017
+    @limit     = options.limit     or 100
+    @idfactory = options.idfactory or (collection, next) -> next null, new bson.ObjectID
     @connections = []
-    for arg in args
-      switch typeof arg
-        when 'string'
-          @host = arg
-        when 'number'
-          @port = arg
-        when 'function'
-          @idfactory = arg
 
   # Close all open connections.  Use at your own risk.
   close: ->
@@ -107,8 +103,7 @@ class Database
   # Gives:
   #   error      : error
   #   documents  : array of found documents
-  find: (collection, args...) ->
-    next  = args.pop()
+  find: (collection, args..., next) ->
     query = args.pop() or {}
     @connection (error, connection) =>
       connection.retain()
@@ -127,8 +122,7 @@ class Database
   # Gives:
   #   error      : error
   #   document   : the found document, or null
-  find_one: (collection, args...) ->
-    next  = args.pop()
+  find_one: (collection, args..., next) ->
     query = args.pop() or {}
     @find collection, query, (error, documents) ->
       if documents.length > 0 then next error, documents[0] else next error, null
@@ -141,8 +135,7 @@ class Database
   #
   # Gives:
   #   error      : error
-  remove: (collection, args...) ->
-    next  = args.pop()
+  remove: (collection, args..., next) ->
     query = args.pop() or {}
     @connection (error, connection) =>
       connection.retain()
@@ -200,7 +193,7 @@ class Database
       document          = {}
       document.name     = key.replace('.', '_') + '_'
       document.ns       = @name + '.' + collection
-      document.unique   = unique
+      document.unique   = !!unique
       document.key      = {}
       document.key[key] = 1
       @insert_without_id 'system.indexes', document, (error, document) =>
