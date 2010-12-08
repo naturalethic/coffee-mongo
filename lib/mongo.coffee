@@ -32,7 +32,6 @@ class Database extends events.EventEmitter
       @idfactory = (collection, next) -> next null, (new ObjectID).toHex()
     else
       @idfactory = (collection, next) -> next null, (new ObjectID)
-    @limit = @options.limit or 100
     @connections = []
   '''
   constructor: (@name, args...) ->
@@ -40,7 +39,6 @@ class Database extends events.EventEmitter
     @port = 27017
     @idfactory = (collection, next) -> next null, new bson.ObjectID
     @connections = []
-    @limit = 100 # hard limit for .find()
     for arg in args
       switch typeof arg
         when 'string'
@@ -133,10 +131,9 @@ class Database extends events.EventEmitter
     else
       query = meta
       meta = {}
-    meta.skip = if isNaN +meta.skip then 0 else +meta.skip
-    meta.limit = if isNaN +meta.limit then Infinity else +meta.limit
-    # FIXME: negative means to close the cursor. Worry?
-    meta.limit = @limit if @limit < meta.limit
+    # defaults
+    meta.skip ?= 0
+    meta.limit ?= 0
     # fields to select
     meta.fields ?= {}
     # FIXME: do we need $explain, $hint, $snapshot? I think not
@@ -145,7 +142,6 @@ class Database extends events.EventEmitter
       query =
         query: query
         orderby: meta.sort
-    #console.log 'QUERY', {query: query, meta : meta}
     #p 'QUERY', {query: query, meta : meta}
     @connection (error, connection) =>
       connection.retain()
