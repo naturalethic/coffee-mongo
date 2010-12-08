@@ -8,7 +8,17 @@ runner.mettle ->
     @db.remove 'Pet', =>
       @db.remove 'fm', =>
         @db.remove 'Food', =>
-          @next()
+          @db.remove 'Hex', =>
+            @next()
+
+runner.mettle ->
+  @tell 'hex ids'
+  db = new mongo.Database 'test', { hex: true }
+  db.insert 'Hex', { foo: 'bar' }, (error, document) =>
+    assert.equal typeof document._id, 'string'
+    assert.equal document._id.length, 24
+    db.close()
+    @next()
 
 runner.mettle ->
   @tell 'insert with given id'

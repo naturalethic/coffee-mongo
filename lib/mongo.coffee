@@ -9,6 +9,7 @@ bson     = require './bson'
 #     host      :   default 'localhost'
 #     port      :   default 27017
 #     limit     :   default limit for find responses (default 100)
+#     hex       :   uses hex strings instead of binary ObjectID
 #     idfactory :   a function that provides ids (default to ObjectID)
 #
 # An idfactory has the following interface:
@@ -25,7 +26,7 @@ class Database
     @host      = options.localhost or 'localhost'
     @port      = options.port      or 27017
     @limit     = options.limit     or 100
-    @idfactory = options.idfactory or (collection, next) -> next null, new bson.ObjectID
+    @idfactory = options.idfactory or (collection, next) -> next null, if options.hex then new bson.ObjectID().toHex() else new bson.ObjectID
     @connections = []
 
   # Close all open connections.  Use at your own risk.
