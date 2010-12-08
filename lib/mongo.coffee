@@ -127,7 +127,11 @@ class Database
   #   documents  : array of found documents
   find: (collection, args..., next) ->
     meta  = args.pop() or {}
-    query = args.pop() or {}
+    if args.length
+      query = args.pop() or {}
+    else
+      query = meta
+      meta = {}
     meta.skip = if isNaN +meta.skip then 0 else +meta.skip
     meta.limit = if isNaN +meta.limit then Infinity else +meta.limit
     # FIXME: negative means to close the cursor. Worry?
@@ -140,7 +144,8 @@ class Database
       query =
         query: query
         orderby: meta.sort
-    console.log 'QUERY', {query: query, meta : meta}
+    #console.log 'QUERY', {query: query, meta : meta}
+    #p 'QUERY', {query: query, meta : meta}
     @connection (error, connection) =>
       connection.retain()
       connection.send (@compose collection, 2004, 0, meta.skip, meta.limit, query, meta.fields), (error, data) =>

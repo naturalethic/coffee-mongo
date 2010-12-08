@@ -95,18 +95,12 @@ runner.mettle ->
     @db.insert 'Pet', pets[1], (error, document) =>
       @db.insert 'Pet', pets[2], (error, document) =>
         @db.update 'Pet', { age: 7 }, { $set: { species: 'Weasel' } }, (error) =>
-          assert.equal pets.length, 2
-          # Alternative syntax
-          @db.update 'Pet', { query: { species: 'Weasel' }, update: { $set: { species: 'Jackalope' } }, multi: true }, (error) =>
+          assert.equal error, null
+          @db.find 'Pet', { species: 'Weasel' }, (error, pets) =>
             assert.equal error, null
-            @db.find 'Pet', { species: 'Jackalope' }, (error, pets) =>
-              assert.equal error, null
-              assert.equal pets.length, 3
-              @db.remove 'Pet', (error) =>
-                @next()
-          assert.equal pets.length, 2
-          @db.clear 'Pet', (error) =>
-            @next()
+            assert.equal pets.length, 2
+            @db.remove 'Pet', (error) =>
+              @next()
 
 runner.mettle ->
   @tell 'find and modify'
