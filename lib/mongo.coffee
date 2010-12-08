@@ -140,7 +140,7 @@ class Database extends events.EventEmitter
     # fields to select
     meta.fields ?= {}
     # FIXME: do we need $explain, $hint, $snapshot? I think not
-    # compose special selector if sort is specified 
+    # compose special selector if sort is specified
     if meta.sort
       query =
         query: query
@@ -151,7 +151,7 @@ class Database extends events.EventEmitter
       connection.retain()
       connection.send (@compose collection, 2004, 0, meta.skip, meta.limit, query, meta.fields), (error, data) =>
         # honor streaming. TODO: reconsider
-        if meta.stream 
+        if meta.stream
           @decompose data, (doc) ->
             if not doc
               @last_error connection, (error, mongo_error) ->

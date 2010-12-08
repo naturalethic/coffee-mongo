@@ -4,11 +4,11 @@ runner.settle ->
 
 runner.mettle ->
   @db = new mongo.Database 'test'
-  @db.remove('Country')
-  @db.remove('Pet')
-  @db.remove('fm')
-  @db.remove('Number')
-  @next()
+  @db.remove 'Country', () =>
+    @db.remove 'Pet', () =>
+      @db.remove 'fm', () =>
+        @db.remove 'Number', () =>
+          @next()
 
 runner.mettle ->
   @tell 'insert with given id'
