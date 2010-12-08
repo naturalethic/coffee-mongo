@@ -78,35 +78,22 @@ class Database
 
   # Updates documents in a collection
   #
-  # XXX: implement upsert, or remove it from the documentation
+  # Updates always are assumed multi=true.  Upserts are not supported because
+  # we always want to specify our own _id.
   #
   # Takes:
   #   collection : collection name
   #   query      : query document (optional - if absent, updates all documents)
-  #   update     : document to replace found documents
-  #   options    : { multi: ..., upsert: ...} (optional)
-  #  *or*
-  #   collection :
-  #   document   : { query: ..., update: ..., multi: ..., upsert: ... }
+  #   update     : update operations document
   #
   # Gives:
   #   error      : error
   update: (collection, args..., next) ->
-    flags = 0
-    if args.length == 1 and args[0].update
-      query   = args[0].query  or {}
-      update  = args[0].update or {}
-      # flags  |= 0x1 if args[0].upsert
-      flags  |= 0x2 if args[0].multi
-    else
-      options = if args.length == 3 then args.pop() else {}
-      update  = args.pop() or {}
-      query   = args.pop() or {}
-      # flags  |= 0x1 if options.upsert
-      flags  |= 0x2 if options.multi
+    update  = args.pop() or {}
+    query   = args.pop() or {}
     @connection (error, connection) =>
       connection.retain()
-      connection.send (@compose collection, 2001, 0, flags, query, update)
+      connection.send (@compose collection, 2001, 0, 2, query, update)
       @last_error connection, (error, mongo_error) ->
         connection.release()
         next mongo_error if next
@@ -198,7 +185,7 @@ class Database
         document = null
       next(error, (if document then document.value else null)) if next
 
-  # Adds an index against the key if one does not already exist
+  # Add indexes against specified keys, ignoring those that already exist.
   #
   # Takes:
   #   collection : collection name
@@ -207,15 +194,36 @@ class Database
   # Gives:
   #   error      : error
   index: (collection, keys, next) ->
+    count = 0
+    count++ for k of keys
     for key, unique of keys
       document          = {}
       document.name     = key.replace('.', '_') + '_'
       document.ns       = @name + '.' + collection
-      document.unique   = unique if unique
+      document.unique   = unique
       document.key      = {}
       document.key[key] = 1
       @insert_without_id 'system.indexes', document, (error, document) =>
-        next error if next
+        next error if next and (error or not --count)
+
+  # Removes index for specified key
+  #
+  # Takes:
+  #   collection : collection name
+  #   key        : key for which to remove index
+  #
+  # Gives:
+  #   error      : error
+  removeIndex: (collection, key, next) ->
+    options = {}
+    options.dropIndexes = collection
+    options.index       = {}
+    options.index[key]  = 1
+    @command 'dropIndexes', options, (error, document) ->
+      if document and document.errmsg
+        error = { code: document.code, message: document.errmsg }
+        document = null
+      next(error, (if document then document.value else null)) if next
 
   # Runs a command
   #

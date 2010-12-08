@@ -84,28 +84,9 @@ runner.mettle ->
 
 runner.mettle ->
   @tell 'update'
-  pet = { name: 'Barky', species: 'Dog' }
-  @db.insert 'Pet', pet, (error, document) =>
-    pet.name = 'Bitey'
-    @db.update 'Pet', { species: 'Dog' }, pet, (error) =>
-      @db.find_one 'Pet', { species: 'Dog' }, (error, document) =>
-        assert.equal error, null
-        assert.equal document.name, 'Bitey'
-        @db.remove 'Pet', (error) =>
-          @next()
-
-runner.mettle ->
-  @tell 'update multi'
-  pets = [{ name: 'Barky', species: 'Dog' },
-          { name: 'Homer', species: 'Cat' },
-          { name: 'Regus', species: 'Pig' }]
-  @db.insert 'Pet', pets[0], (error, document) =>
-    @db.insert 'Pet', pets[1], (error, document) =>
-      @db.insert 'Pet', pets[2], (error, document) =>
-        @db.update 'Pet', { }, { $set: { species: 'Weasel' } }, { multi: true }, (error) =>
-          assert.equal error, null
-          @db.find 'Pet', { species: 'Weasel' }, (error, pets) =>
-            assert.equal error, null
+  pets = [{ name: 'Barky', species: 'Dog', age: 7 },
+          { name: 'Homer', species: 'Cat', age: 9 },
+          { name: 'Regus', species: 'Pig', age: 7 }]
             assert.equal pets.length, 3
             # Alternative syntax
             @db.update 'Pet', { query: { species: 'Weasel' }, update: { $set: { species: 'Jackalope' } }, multi: true }, (error) =>
@@ -115,6 +96,9 @@ runner.mettle ->
                 assert.equal pets.length, 3
                 @db.remove 'Pet', (error) =>
                   @next()
+            assert.equal pets.length, 2
+            @db.clear 'Pet', (error) =>
+              @next()
 
 runner.mettle ->
   @tell 'find and modify'
@@ -133,11 +117,19 @@ runner.mettle ->
   @iceland = { name: 'Iceland', population: 316252 }
   @db.insert 'Country', @iceland, (error, document) =>
     assert.equal error, null
-    @db.index 'Country', {name: true}, (error) =>
+    @db.index 'Country', { name: true, population: false }, (error) =>
       assert.equal error, null
-      @db.index 'Country', {name: true}, (error) =>
+      @db.index 'Country', { name: false }, (error) =>
         assert.equal error, null
-        @db.find 'system.indexes', { name: 'name_' }, (error, indexes) =>
+        @db.find 'system.indexes', { ns: 'test.Country' }, (error, indexes) =>
           assert.equal error, null
-          assert.equal indexes.length, 1
-          @next()
+          assert.equal indexes.length, 3
+          @db.removeIndex 'Country', 'name', (error) =>
+            assert.equal error, null
+            @db.removeIndex 'Country', 'population', (error) =>
+              assert.equal error, null
+              @db.find 'system.indexes', { ns: 'test.Country' }, (error, indexes) =>
+                assert.equal error, null
+                assert.equal indexes.length, 1
+                @db.remove 'Country', =>
+                  @next()
