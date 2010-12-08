@@ -56,7 +56,10 @@ runner.mettle ->
   @db.find_one 'Food', { }, { fields: [ 'name' ] }, (error, food) =>
     delete food._id
     assert.deepEqual food, { name: 'Apple' }
-    @next()
+    @db.find_one 'Food', { }, { fields: { name: 1} }, (error, food) =>
+      delete food._id
+      assert.deepEqual food, { name: 'Apple' }
+      @next()
 
 runner.mettle ->
   @tell 'find with sort'

@@ -104,7 +104,7 @@ class Database extends events.EventEmitter
   #   options    : options hash
   #     limit    :   max records returned
   #     skip     :   number of records to skip
-  #     fields   :   specifies particular fields to return (pass as array of names)
+  #     fields   :   specifies particular fields to return (can pass hash or array)
   #     sort     :   sort document
   #
   # Gives:
@@ -117,8 +117,11 @@ class Database extends events.EventEmitter
     options.skip   ?= 0
     fields          = {}
     if options.fields
-      for field in options.fields
-        fields[field] = 1
+      if options.fields instanceof Array
+        for field in options.fields
+          fields[field] = 1
+      else
+        fields = options.fields
     if options.sort
       query =
         $query:   query
