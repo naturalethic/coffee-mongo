@@ -18,11 +18,28 @@ bson     = require './bson'
 #   error      : error, if any
 #   id         : a new unique id for the provided collection
 class Database
+  '''
+  TODO: consider this form -- more expressive
+  constructor: (@options) ->
+    @options ?= {}
+    @options.host ?= 'localhost'
+    #@options.host.replace /^mongodb:\/\/([^\/]+)/ # TODO
+    @host = @options.host
+    @port = @options.port or 27017
+    @name = @options.name or 'test'
+    if @options.stringifyIDs
+      @idfactory = (collection, next) -> next null, (new ObjectID).toHex()
+    else
+      @idfactory = (collection, next) -> next null, (new ObjectID)
+    @limit = @options.limit or 100
+    @connections = []
+  '''
   constructor: (@name, args...) ->
     @host = 'localhost'
     @port = 27017
     @idfactory = (collection, next) -> next null, new bson.ObjectID
     @connections = []
+    @limit = 100 # hard limit for .find()
     for arg in args
       switch typeof arg
         when 'string'
@@ -103,15 +120,30 @@ class Database
   # Takes:
   #   collection : collection name
   #   query      : query document (optional - if absent, gives all documents)
+  #   meta       : directives (optional) = {sort: ..., fields: ..., skip: ..., limit: ...}
   #
   # Gives:
   #   error      : error
   #   documents  : array of found documents
   find: (collection, args..., next) ->
+    meta  = args.pop() or {}
     query = args.pop() or {}
+    meta.skip = if isNaN +meta.skip then 0 else +meta.skip
+    meta.limit = if isNaN +meta.limit then Infinity else +meta.limit
+    # FIXME: negative means to close the cursor. Worry?
+    meta.limit = @limit if @limit < meta.limit
+    # fields to select
+    meta.fields ?= {}
+    # TODO: do we need $explain, $hint, $snapshot? I think not
+    # compose special selector if sort is specified 
+    if meta.sort
+      query =
+        query: query
+        orderby: meta.sort
+    console.log 'LIMIT', meta, query
     @connection (error, connection) =>
       connection.retain()
-      connection.send (@compose collection, 2004, 0, 0, 0, query), (error, data) =>
+      connection.send (@compose collection, 2004, 0, meta.skip, meta.limit, query, meta.fields), (error, data) =>
         documents = @decompose data
         @last_error connection, (error, mongo_error) ->
           connection.release()
