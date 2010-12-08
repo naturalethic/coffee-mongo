@@ -4,7 +4,11 @@ runner.settle ->
 
 runner.mettle ->
   @db = new mongo.Database 'test'
-  @next()
+  @db.remove 'Country', =>
+    @db.remove 'Pet', =>
+      @db.remove 'fm', =>
+        @db.remove 'Food', =>
+          @next()
 
 runner.mettle ->
   @tell 'insert with given id'
@@ -21,6 +25,36 @@ runner.mettle ->
     assert.equal documents.length, 1
     assert.deepEqual @iceland, documents[0]
     @next()
+
+runner.mettle ->
+  @tell 'find with limit/skip'
+  i = 100
+  insert = =>
+    @db.insert 'Food', { name: 'Apple', type: 'Fruit', number: i }, =>
+      if --i
+        insert()
+      else
+        @db.find 'Food', { }, { limit: 10 }, (error, foods) =>
+          assert.equal foods.length, 10
+          @db.find_one 'Food', { }, { skip: 10 }, (error, food) =>
+            assert.equal food.number, 90
+            @next()
+  insert()
+
+runner.mettle ->
+  @tell 'find with fields'
+  @db.find_one 'Food', { }, { fields: [ 'name' ] }, (error, food) =>
+    delete food._id
+    assert.deepEqual food, { name: 'Apple' }
+    @next()
+
+runner.mettle ->
+  @tell 'find with sort'
+  @db.find_one 'Food', { }, { sort: { number: 1 } }, (error, food) =>
+    assert.equal food.number, 1
+    @db.find_one 'Food', { }, { sort: { number: -1 } }, (error, food) =>
+      assert.equal food.number, 100
+      @next()
 
 runner.mettle ->
   @tell 'insert duplicate'

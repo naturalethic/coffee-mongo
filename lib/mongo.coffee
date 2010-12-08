@@ -99,15 +99,31 @@ class Database
   # Takes:
   #   collection : collection name
   #   query      : query document (optional - if absent, gives all documents)
+  #   options    : options hash
+  #     limit    :   max records returned
+  #     skip     :   number of records to skip
+  #     fields   :   specifies particular fields to return (pass as array of names)
+  #     sort     :   sort document
   #
   # Gives:
   #   error      : error
   #   documents  : array of found documents
   find: (collection, args..., next) ->
-    query = args.pop() or {}
+    options = if args.length == 2 then args.pop() else {}
+    query   = args.pop() or {}
+    options.limit  ?= @limit
+    options.skip   ?= 0
+    fields          = {}
+    if options.fields
+      for field in options.fields
+        fields[field] = 1
+    if options.sort
+      query =
+        $query:   query
+        $orderby: options.sort
     @connection (error, connection) =>
       connection.retain()
-      connection.send (@compose collection, 2004, 0, 0, 0, query), (error, data) =>
+      connection.send (@compose collection, 2004, 0, options.skip, options.limit, query, fields), (error, data) =>
         documents = @decompose data
         @last_error connection, (error, mongo_error) ->
           connection.release()
@@ -123,8 +139,10 @@ class Database
   #   error      : error
   #   document   : the found document, or null
   find_one: (collection, args..., next) ->
-    query = args.pop() or {}
-    @find collection, query, (error, documents) ->
+    options = if args.length == 2 then args.pop() else {}
+    query   = args.pop() or {}
+    options.limit = 1
+    @find collection, query, options, (error, documents) ->
       if documents.length > 0 then next error, documents[0] else next error, null
 
   # Remove documents from a collection matching a query
