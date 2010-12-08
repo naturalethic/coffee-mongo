@@ -107,8 +107,7 @@ class Database
   # Gives:
   #   error      : error
   #   documents  : array of found documents
-  find: (collection, args...) ->
-    next  = args.pop()
+  find: (collection, args..., next) ->
     query = args.pop() or {}
     @connection (error, connection) =>
       connection.retain()
@@ -127,8 +126,7 @@ class Database
   # Gives:
   #   error      : error
   #   document   : the found document, or null
-  find_one: (collection, args...) ->
-    next  = args.pop()
+  find_one: (collection, args..., next) ->
     query = args.pop() or {}
     @find collection, query, (error, documents) ->
       if documents.length > 0 then next error, documents[0] else next error, null
@@ -141,8 +139,7 @@ class Database
   #
   # Gives:
   #   error      : error
-  remove: (collection, args...) ->
-    next  = args.pop()
+  remove: (collection, args..., next) ->
     query = args.pop() or {}
     @connection (error, connection) =>
       connection.retain()
