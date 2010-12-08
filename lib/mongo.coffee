@@ -27,7 +27,7 @@ class Database extends events.EventEmitter
     @host      = options.localhost or 'localhost'
     @port      = options.port      or 27017
     @limit     = options.limit     or 100
-    @idfactory = options.idfactory or (collection, next) -> next null, if options.hex then new bson.ObjectID().toHex() else new bson.ObjectID
+    @idfactory = options.idfactory or (if options.hex then ((collection, next) -> next null, new bson.ObjectID().toHex()) else ((collection, next) -> next null, new bson.ObjectID))
     @connections = []
 
   # Close all open connections.  Use at your own risk.
