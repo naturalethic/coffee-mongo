@@ -5,10 +5,13 @@ bson     = require './bson'
 # Represents a Mongo database
 #
 # Takes:
-#   name      : name of the database
-#   host      : host (optional, defaults to localhost)
-#   port      : port (optional, defaults to 27017)
-#   idfactory : a function that provides ids (optional, defaults to ObjectIDs)
+#   name        : name of the database
+#   options     : options hash
+#     host      :   default 'localhost'
+#     port      :   default 27017
+#     limit     :   default limit for find responses (default 100)
+#     hex       :   uses hex strings instead of binary ObjectID
+#     idfactory :   a function that provides ids (default to ObjectID)
 #
 # An idfactory has the following interface:
 #
@@ -19,34 +22,13 @@ bson     = require './bson'
 #   error      : error, if any
 #   id         : a new unique id for the provided collection
 class Database extends events.EventEmitter
-  '''
-  TODO: consider this form -- more expressive
-  constructor: (@options) ->
-    @options ?= {}
-    @options.host ?= 'localhost'
-    #@options.host.replace /^mongodb:\/\/([^\/]+)/ # TODO
-    @host = @options.host
-    @port = @options.port or 27017
-    @name = @options.name or 'test'
-    if @options.stringifyIDs
-      @idfactory = (collection, next) -> next null, (new ObjectID).toHex()
-    else
-      @idfactory = (collection, next) -> next null, (new ObjectID)
+  constructor: (@name, options) ->
+    options    = options or {}
+    @host      = options.localhost or 'localhost'
+    @port      = options.port      or 27017
+    @limit     = options.limit     or 100
+    @idfactory = options.idfactory or (collection, next) -> next null, if options.hex then new bson.ObjectID().toHex() else new bson.ObjectID
     @connections = []
-  '''
-  constructor: (@name, args...) ->
-    @host = 'localhost'
-    @port = 27017
-    @idfactory = (collection, next) -> next null, new bson.ObjectID
-    @connections = []
-    for arg in args
-      switch typeof arg
-        when 'string'
-          @host = arg
-        when 'number'
-          @port = arg
-        when 'function'
-          @idfactory = arg
 
   # Close all open connections.  Use at your own risk.
   close: ->
@@ -119,48 +101,35 @@ class Database extends events.EventEmitter
   # Takes:
   #   collection : collection name
   #   query      : query document (optional - if absent, gives all documents)
-  #   meta       : directives (optional) = {sort: ..., fields: ..., skip: ..., limit: ...}
+  #   options    : options hash
+  #     limit    :   max records returned
+  #     skip     :   number of records to skip
+  #     fields   :   specifies particular fields to return (pass as array of names)
+  #     sort     :   sort document
   #
   # Gives:
   #   error      : error
   #   documents  : array of found documents
   find: (collection, args..., next) ->
-    meta  = args.pop() or {}
-    if args.length
-      query = args.pop() or {}
-    else
-      query = meta
-      meta = {}
-    # defaults
-    meta.skip ?= 0
-    meta.limit ?= 0
-    # fields to select
-    meta.fields ?= {}
-    # FIXME: do we need $explain, $hint, $snapshot? I think not
-    # compose special selector if sort is specified
-    if meta.sort
+    options = if args.length == 2 then args.pop() else {}
+    query   = args.pop() or {}
+    options.limit  ?= @limit
+    options.skip   ?= 0
+    fields          = {}
+    if options.fields
+      for field in options.fields
+        fields[field] = 1
+    if options.sort
       query =
-        query: query
-        orderby: meta.sort
-    #p 'QUERY', {query: query, meta : meta}
+        $query:   query
+        $orderby: options.sort
     @connection (error, connection) =>
       connection.retain()
-      connection.send (@compose collection, 2004, 0, meta.skip, meta.limit, query, meta.fields), (error, data) =>
-        # honor streaming. TODO: reconsider
-        if meta.stream
-          @decompose data, (doc) ->
-            if not doc
-              @last_error connection, (error, mongo_error) ->
-                connection.release()
-                next mongo_error if next
-            else
-              next null, doc if next
-        else
-          # TODO: fetch the total number of documents w/o applying meta.limit conditions
-          documents = @decompose data
-          @last_error connection, (error, mongo_error) ->
-            connection.release()
-            next mongo_error, documents if next
+      connection.send (@compose collection, 2004, 0, options.skip, options.limit, query, fields), (error, data) =>
+        documents = @decompose data
+        @last_error connection, (error, mongo_error) ->
+          connection.release()
+          next mongo_error, documents if next
 
   # Find a single document in a collection
   #
@@ -172,8 +141,10 @@ class Database extends events.EventEmitter
   #   error      : error
   #   document   : the found document, or null
   find_one: (collection, args..., next) ->
-    query = args.pop() or {}
-    @find collection, query, (error, documents) ->
+    options = if args.length == 2 then args.pop() else {}
+    query   = args.pop() or {}
+    options.limit = 1
+    @find collection, query, options, (error, documents) ->
       if documents.length > 0 then next error, documents[0] else next error, null
 
   # Remove documents from a collection matching a query
@@ -243,7 +214,7 @@ class Database extends events.EventEmitter
       document          = {}
       document.name     = key.replace('.', '_') + '_'
       document.ns       = @name + '.' + collection
-      document.unique   = unique
+      document.unique   = !!unique
       document.key      = {}
       document.key[key] = 1
       # FIXME: ensureIndex command?

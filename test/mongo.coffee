@@ -4,11 +4,21 @@ runner.settle ->
 
 runner.mettle ->
   @db = new mongo.Database 'test'
-  @db.remove 'Country', () =>
-    @db.remove 'Pet', () =>
-      @db.remove 'fm', () =>
-        @db.remove 'Number', () =>
-          @next()
+  @db.remove 'Country', =>
+    @db.remove 'Pet', =>
+      @db.remove 'fm', =>
+        @db.remove 'Food', =>
+          @db.remove 'Hex', =>
+            @next()
+
+runner.mettle ->
+  @tell 'hex ids'
+  db = new mongo.Database 'test', { hex: true }
+  db.insert 'Hex', { foo: 'bar' }, (error, document) =>
+    assert.equal typeof document._id, 'string'
+    assert.equal document._id.length, 24
+    db.close()
+    @next()
 
 runner.mettle ->
   @tell 'insert with given id'
@@ -27,6 +37,36 @@ runner.mettle ->
     @next()
 
 runner.mettle ->
+  @tell 'find with limit/skip'
+  i = 100
+  insert = =>
+    @db.insert 'Food', { name: 'Apple', type: 'Fruit', number: i }, =>
+      if --i
+        insert()
+      else
+        @db.find 'Food', { }, { limit: 10 }, (error, foods) =>
+          assert.equal foods.length, 10
+          @db.find_one 'Food', { }, { skip: 10 }, (error, food) =>
+            assert.equal food.number, 90
+            @next()
+  insert()
+
+runner.mettle ->
+  @tell 'find with fields'
+  @db.find_one 'Food', { }, { fields: [ 'name' ] }, (error, food) =>
+    delete food._id
+    assert.deepEqual food, { name: 'Apple' }
+    @next()
+
+runner.mettle ->
+  @tell 'find with sort'
+  @db.find_one 'Food', { }, { sort: { number: 1 } }, (error, food) =>
+    assert.equal food.number, 1
+    @db.find_one 'Food', { }, { sort: { number: -1 } }, (error, food) =>
+      assert.equal food.number, 100
+      @next()
+
+runner.mettle ->
   @tell 'insert duplicate'
   @db.insert 'Country', @iceland, (error, document) =>
     assert.equal error.code, 11000
@@ -42,8 +82,9 @@ runner.mettle ->
 
 runner.mettle ->
   @tell 'insert with custom id factory'
-  db = new mongo.Database 'test', (collection, next) ->
+  idfactory = (collection, next) ->
     next null, 'factory'
+  db = new mongo.Database 'test', { idfactory: idfactory }
   doc_given = { name: 'Iceland', population: 316252 }
   db.insert 'Country', doc_given, (error, doc_taken) =>
     assert.equal error, null
@@ -77,14 +118,6 @@ runner.mettle ->
     assert.equal error, null
     assert.notEqual document, null
     @next()
-
-runner.mettle ->
-  @tell 'clear'
-  @db.remove 'Number', (error) =>
-    assert.equal error, null
-    @db.find_one 'Number', (error, document) =>
-      assert.equal document, null
-      @next()
 
 runner.mettle ->
   @tell 'update'
