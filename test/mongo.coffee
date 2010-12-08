@@ -4,6 +4,10 @@ runner.settle ->
 
 runner.mettle ->
   @db = new mongo.Database 'test'
+  @db.remove('Country')
+  @db.remove('Pet')
+  @db.remove('fm')
+  @db.remove('Number')
   @next()
 
 runner.mettle ->
@@ -87,18 +91,22 @@ runner.mettle ->
   pets = [{ name: 'Barky', species: 'Dog', age: 7 },
           { name: 'Homer', species: 'Cat', age: 9 },
           { name: 'Regus', species: 'Pig', age: 7 }]
-            assert.equal pets.length, 3
-            # Alternative syntax
-            @db.update 'Pet', { query: { species: 'Weasel' }, update: { $set: { species: 'Jackalope' } }, multi: true }, (error) =>
+  @db.insert 'Pet', pets[0], (error, document) =>
+    @db.insert 'Pet', pets[1], (error, document) =>
+      @db.insert 'Pet', pets[2], (error, document) =>
+        @db.update 'Pet', { age: 7 }, { $set: { species: 'Weasel' } }, (error) =>
+          assert.equal pets.length, 2
+          # Alternative syntax
+          @db.update 'Pet', { query: { species: 'Weasel' }, update: { $set: { species: 'Jackalope' } }, multi: true }, (error) =>
+            assert.equal error, null
+            @db.find 'Pet', { species: 'Jackalope' }, (error, pets) =>
               assert.equal error, null
-              @db.find 'Pet', { species: 'Jackalope' }, (error, pets) =>
-                assert.equal error, null
-                assert.equal pets.length, 3
-                @db.remove 'Pet', (error) =>
-                  @next()
-            assert.equal pets.length, 2
-            @db.clear 'Pet', (error) =>
-              @next()
+              assert.equal pets.length, 3
+              @db.remove 'Pet', (error) =>
+                @next()
+          assert.equal pets.length, 2
+          @db.clear 'Pet', (error) =>
+            @next()
 
 runner.mettle ->
   @tell 'find and modify'

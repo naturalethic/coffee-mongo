@@ -134,20 +134,30 @@ class Database
     meta.limit = @limit if @limit < meta.limit
     # fields to select
     meta.fields ?= {}
-    # TODO: do we need $explain, $hint, $snapshot? I think not
+    # FIXME: do we need $explain, $hint, $snapshot? I think not
     # compose special selector if sort is specified 
     if meta.sort
       query =
         query: query
         orderby: meta.sort
-    console.log 'LIMIT', meta, query
+    console.log 'QUERY', {query: query, meta : meta}
     @connection (error, connection) =>
       connection.retain()
       connection.send (@compose collection, 2004, 0, meta.skip, meta.limit, query, meta.fields), (error, data) =>
-        documents = @decompose data
-        @last_error connection, (error, mongo_error) ->
-          connection.release()
-          next mongo_error, documents if next
+        # honor streaming
+        if meta.stream 
+          @decompose data, (doc) ->
+            if not doc
+              @last_error connection, (error, mongo_error) ->
+                connection.release()
+                next mongo_error if next
+            else
+              next null, doc if next
+        else
+          documents = @decompose data
+          @last_error connection, (error, mongo_error) ->
+            connection.release()
+            next mongo_error, documents if next
 
   # Find a single document in a collection
   #
@@ -223,6 +233,7 @@ class Database
   # Gives:
   #   error      : error
   index: (collection, keys, next) ->
+    # FIXME: count = Object.keys(keys).length  ?
     count = 0
     count++ for k of keys
     for key, unique of keys
@@ -232,6 +243,7 @@ class Database
       document.unique   = unique
       document.key      = {}
       document.key[key] = 1
+      # FIXME: ensureIndex command?
       @insert_without_id 'system.indexes', document, (error, document) =>
         next error if next and (error or not --count)
 
@@ -244,6 +256,7 @@ class Database
   # Gives:
   #   error      : error
   removeIndex: (collection, key, next) ->
+    # FIXME: same technique as in .index() to process multiple keys?
     options = {}
     options.dropIndexes = collection
     options.index       = {}
@@ -312,7 +325,7 @@ class Database
     buffer
 
   # Decompose a mongo binary message
-  decompose: (buffer) ->
+  decompose: (buffer, fn) ->
     i = 4 * 3
     code = (new bson.Int32 buffer.slice i).value()
     i += 4
@@ -328,11 +341,17 @@ class Database
       documents = []
       while count--
         document = new bson.Document buffer.slice i
-        documents.push document.value()
+        if fn
+          fn document.value()
+        else
+          documents.push document.value()
         i += document.length
     else
       throw Error "unsupported response code: #{code}"
-    documents
+    if fn
+      fn undefined
+    else
+      documents
 
 _buffer_grow_size = 10000
 
