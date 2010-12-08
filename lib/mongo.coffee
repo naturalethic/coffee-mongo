@@ -96,6 +96,21 @@ class Database extends events.EventEmitter
         connection.release()
         next mongo_error if next
 
+  # Inserts or updates the document in a collection
+  #
+  # Takes:
+  #   collection : collection name
+  #   document   : the document
+  #
+  # Gives:
+  #   error      : error
+  save: (collection, document, next) ->
+    if not document._id
+      # TODO: fill with defaults first?
+      @insert document, next
+    else
+      @update document, {_id: document._id}
+
   # Find documents in a collection
   #
   # Takes:
@@ -115,13 +130,14 @@ class Database extends events.EventEmitter
     query   = args.pop() or {}
     options.limit  ?= @limit
     options.skip   ?= 0
-    fields          = {}
-    if options.fields
-      if options.fields instanceof Array
-        for field in options.fields
-          fields[field] = 1
-      else
-        fields = options.fields
+    fields          = options.fields or {}
+    # DVV: native driver allows for DEselecting fields by marking them 0, e.g. {foo: 0, bar: 0}
+    # DVV: what is array alternative?! Think array should not be allowed; plus we save ticks
+    # DVV: hashes are ordered so no point in array
+    if fields instanceof Array
+      fields = {} # N.B. may come _only_ from options.fields, so safe to reset
+      for field in options.fields
+        fields[field] = 1
     if options.sort
       query =
         $query:   query
@@ -143,6 +159,7 @@ class Database extends events.EventEmitter
   # Gives:
   #   error      : error
   #   document   : the found document, or null
+  # DVV: mind to rename to findOne, as in mongo shell?
   find_one: (collection, args..., next) ->
     options = if args.length == 2 then args.pop() else {}
     query   = args.pop() or {}
