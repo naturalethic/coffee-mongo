@@ -211,7 +211,7 @@ class Database
       document          = {}
       document.name     = key.replace('.', '_') + '_'
       document.ns       = @name + '.' + collection
-      document.unique   = unique
+      document.unique   = unique if unique
       document.key      = {}
       document.key[key] = 1
       @insert_without_id 'system.indexes', document, (error, document) =>
