@@ -1,3 +1,4 @@
+events   = require 'events'
 net      = require 'net'
 bson     = require './bson'
 
@@ -17,7 +18,7 @@ bson     = require './bson'
 # Gives:
 #   error      : error, if any
 #   id         : a new unique id for the provided collection
-class Database
+class Database extends events.EventEmitter
   '''
   TODO: consider this form -- more expressive
   constructor: (@options) ->
@@ -149,7 +150,7 @@ class Database
     @connection (error, connection) =>
       connection.retain()
       connection.send (@compose collection, 2004, 0, meta.skip, meta.limit, query, meta.fields), (error, data) =>
-        # honor streaming
+        # honor streaming. TODO: reconsider
         if meta.stream 
           @decompose data, (doc) ->
             if not doc
@@ -159,6 +160,7 @@ class Database
             else
               next null, doc if next
         else
+          # TODO: fetch the total number of documents w/o applying meta.limit conditions
           documents = @decompose data
           @last_error connection, (error, mongo_error) ->
             connection.release()
