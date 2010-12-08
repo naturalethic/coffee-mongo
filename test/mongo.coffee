@@ -75,14 +75,6 @@ runner.mettle ->
     @next()
 
 runner.mettle ->
-  @tell 'clear'
-  @db.clear 'Number', (error) =>
-    assert.equal error, null
-    @db.find_one 'Number', (error, document) =>
-      assert.equal document, null
-      @next()
-
-runner.mettle ->
   @tell 'update'
   pets = [{ name: 'Barky', species: 'Dog', age: 7 },
           { name: 'Homer', species: 'Cat', age: 9 },
@@ -95,7 +87,7 @@ runner.mettle ->
           @db.find 'Pet', { species: 'Weasel' }, (error, pets) =>
             assert.equal error, null
             assert.equal pets.length, 2
-            @db.clear 'Pet', (error) =>
+            @db.remove 'Pet', (error) =>
               @next()
 
 runner.mettle ->
