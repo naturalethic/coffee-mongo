@@ -142,9 +142,11 @@ class Database extends events.EventEmitter
       query =
         $query:   query
         $orderby: options.sort
+    flags = 0
+    flags += 32+1 if options.tailable
     @connection (error, connection) =>
       connection.retain()
-      connection.send (@compose collection, 2004, 0, options.skip, options.limit, query, fields), (error, data) =>
+      connection.send (@compose collection, 2004, flags, options.skip, options.limit, query, fields), (error, data) =>
         documents = @decompose data
         @last_error connection, (error, mongo_error) ->
           connection.release()
