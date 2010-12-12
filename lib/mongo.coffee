@@ -91,6 +91,16 @@ class Database extends events.EventEmitter
     query   = args.pop() or {}
     @connection (error, connection) =>
       connection.retain()
+      connection.send (@compose collection, 2001, 0, 0, query, update)
+      @last_error connection, (error, mongo_error) ->
+        connection.release()
+        next mongo_error if next
+
+  mupdate: (collection, args..., next) ->
+    update  = args.pop() or {}
+    query   = args.pop() or {}
+    @connection (error, connection) =>
+      connection.retain()
       connection.send (@compose collection, 2001, 0, 2, query, update)
       @last_error connection, (error, mongo_error) ->
         connection.release()
@@ -105,11 +115,12 @@ class Database extends events.EventEmitter
   # Gives:
   #   error      : error
   save: (collection, document, next) ->
+    document ?= {}
     if not document._id
       # TODO: fill with defaults first?
-      @insert document, next
+      @insert collection, document, next
     else
-      @update document, {_id: document._id}
+      @update collection, {_id: document._id}, document, next
 
   # Find documents in a collection
   #
