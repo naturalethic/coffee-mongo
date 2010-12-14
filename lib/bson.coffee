@@ -244,6 +244,43 @@ class BSONNull extends BSONBuffer
   value: ->
     null
 
+'''
+  // Get regular expression
+  var clean_regexp = regexp.toString().match(/\/.*\//, '');
+  clean_regexp = clean_regexp[0].substring(1, clean_regexp[0].length - 1);
+  var options = regexp.toString().substr(clean_regexp.length + 2);
+  var options_array = [];
+  // Extract all options that are legal and sort them alphabetically
+  for(var index = 0; index < options.length; index++) {
+    var chr = options.charAt(index);
+    if(chr == 'i' || chr == 'm' || chr == 'x') options_array.push(chr);
+  }
+  // Don't need to sort the alphabetically as it's already done by javascript on creation of a Regexp obejct
+  options = options_array.join('');
+  // Encode the regular expression
+  return BinaryParser.encode_cstring(clean_regexp) + BinaryParser.encode_cstring(options);
+'''
+class BSONRegExp extends BSONString
+  type: 0x0B
+
+  constructor: (value) ->
+    # get regular expression
+    clean_regexp = value.toString().match /\/.*\//, ''
+    clean_regexp = clean_regexp[0].substring(1, clean_regexp[0].length - 1)
+    options = value.toString().substr(clean_regexp.length + 2)
+    options_array = []
+    # extract all options that are legal and sort them alphabetically
+    for index in [0...options.length]
+      chr = options.charAt index
+      if chr is 'i' or chr is 'm' or chr is 'x'
+        options_array.push chr
+    # don't need to sort the alphabetically as it's already done by javascript on creation of a Regexp obejct
+    options = options_array.join ''
+    super(clean_regexp) # + super(options)
+
+  value: ->
+    null
+
 class BSONInt32 extends BSONBuffer
   type: 0x10
 
@@ -289,6 +326,12 @@ class BSONElement extends BSONBuffer
             v = args[1]
           else
             v = new BSONDocument args[1]
+        when 'function'
+          if args[1] instanceof RegExp
+            v = new BSONRegExp args[1]
+        #when 'undefined'
+        #  v = new BSONNull args[1]
+      #console.log 'TYPE', args[1] instanceof RegExp, 'VALUE', args unless v
       throw Error 'unsupported bson value' if not v?
       k = new BSONKey args[0]
       super 1 + k.length + v.length
@@ -355,6 +398,7 @@ _type =
   0x08: BSONBoolean
   0x09: BSONDate
   0x0A: BSONNull
+  0x0B: BSONRegExp
   0x10: BSONInt32
   0x12: BSONInt64
 
@@ -375,6 +419,7 @@ module.exports =
     BSONBoolean:     BSONBoolean
     BSONDate:        BSONDate
     BSONNull:        BSONNull
+    BSONRegExp:      BSONRegExp
     BSONInt32:       BSONInt32
     BSONInt64:       BSONInt64
     BSONElement:     BSONElement
@@ -392,6 +437,7 @@ module.exports =
   Boolean:     BSONBoolean
   Date:        BSONDate
   Null:        BSONNull
+  RegExp:      BSONRegExp
   Int32:       BSONInt32
   Int64:       BSONInt64
   Element:     BSONElement
