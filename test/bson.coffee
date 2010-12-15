@@ -59,6 +59,9 @@ runner.mettle ->
   v = new _.BSONString 'hello'
   assert.equal v.toHex(), '0600000068656c6c6f00'
   assert.equal v.value(), 'hello'
+  @tell 'BSONRegExp'
+  v = new _.BSONRegExp /test/gi
+  assert.equal v.toString(), '/test/gi'
   @tell 'BSONObjectID'
   v = new _.BSONObjectID()
   assert.equal v.length, 12

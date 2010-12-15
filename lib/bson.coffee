@@ -140,7 +140,7 @@ class BSONBuffer extends Buffer
     @toHex()
 
   toString: ->
-    @value()
+    @value().toString()
 
 class BSONKey extends BSONBuffer
   constructor: (value) ->
@@ -184,6 +184,36 @@ class BSONString extends BSONBuffer
 
   value: ->
     @slice(0).toString 'utf8', 4, @length - 1
+
+class BSONRegExp extends BSONBuffer
+  type: 0x0B
+
+  constructor: (value) ->
+    if value instanceof Buffer
+      nullEncounters = 0
+      for i in [0...value.length]
+        break if nullEncounters == 2
+        nullEncounters++ if value[i] == 0
+      super value.parent, i + 1, value.offset
+    else
+      str       = value.toString()
+      lastSlash = str.lastIndexOf('/')
+      pattern   = str.slice(1, lastSlash)
+      flags     = str.slice(lastSlash + 1, str.length)
+      super str.length
+      @write pattern + '\u0000' + flags + '\u0000'
+
+  value: ->
+    pattern = null
+    flags = null
+    for i in [0...@length]
+      if @[i] == 0
+        if not pattern
+          pattern = @slice(0, i).toString 'utf8'
+        else
+          flags = @slice(pattern.length + 1, i).toString 'utf8'
+          break
+    new RegExp pattern, flags
 
 class BSONObjectID extends BSONBuffer
   type: 0x07
@@ -371,6 +401,7 @@ module.exports =
     BSONKey:         BSONKey
     BSONFloat:       BSONFloat
     BSONString:      BSONString
+    BSONRegExp:      BSONRegExp
     BSONObjectID:    BSONObjectID
     BSONBoolean:     BSONBoolean
     BSONDate:        BSONDate
@@ -388,6 +419,7 @@ module.exports =
   Key:         BSONKey
   Float:       BSONFloat
   String:      BSONString
+  RegExp:      BSONRegExp
   ObjectID:    BSONObjectID
   Boolean:     BSONBoolean
   Date:        BSONDate
