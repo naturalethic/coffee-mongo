@@ -274,43 +274,6 @@ class BSONNull extends BSONBuffer
   value: ->
     null
 
-'''
-  // Get regular expression
-  var clean_regexp = regexp.toString().match(/\/.*\//, '');
-  clean_regexp = clean_regexp[0].substring(1, clean_regexp[0].length - 1);
-  var options = regexp.toString().substr(clean_regexp.length + 2);
-  var options_array = [];
-  // Extract all options that are legal and sort them alphabetically
-  for(var index = 0; index < options.length; index++) {
-    var chr = options.charAt(index);
-    if(chr == 'i' || chr == 'm' || chr == 'x') options_array.push(chr);
-  }
-  // Don't need to sort the alphabetically as it's already done by javascript on creation of a Regexp obejct
-  options = options_array.join('');
-  // Encode the regular expression
-  return BinaryParser.encode_cstring(clean_regexp) + BinaryParser.encode_cstring(options);
-'''
-class BSONRegExp extends BSONString
-  type: 0x0B
-
-  constructor: (value) ->
-    # get regular expression
-    clean_regexp = value.toString().match /\/.*\//, ''
-    clean_regexp = clean_regexp[0].substring(1, clean_regexp[0].length - 1)
-    options = value.toString().substr(clean_regexp.length + 2)
-    options_array = []
-    # extract all options that are legal and sort them alphabetically
-    for index in [0...options.length]
-      chr = options.charAt index
-      if chr is 'i' or chr is 'm' or chr is 'x'
-        options_array.push chr
-    # don't need to sort the alphabetically as it's already done by javascript on creation of a Regexp obejct
-    options = options_array.join ''
-    super(clean_regexp) # + super(options)
-
-  value: ->
-    null
-
 class BSONInt32 extends BSONBuffer
   type: 0x10
 

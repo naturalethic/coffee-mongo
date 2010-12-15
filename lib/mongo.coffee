@@ -96,16 +96,6 @@ class Database extends events.EventEmitter
     query   = args.pop() or {}
     @connection (error, connection) =>
       connection.retain()
-      connection.send (@compose collection, 2001, 0, 0, query, update)
-      @last_error connection, (error, mongo_error) ->
-        connection.release()
-        next mongo_error if next
-
-  mupdate: (collection, args..., next) ->
-    update  = args.pop() or {}
-    query   = args.pop() or {}
-    @connection (error, connection) =>
-      connection.retain()
       connection.send (@compose collection, 2001, 0, 2, query, update)
       @last_error connection, (error, mongo_error) ->
         connection.release()
