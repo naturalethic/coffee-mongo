@@ -27,7 +27,12 @@ class Database extends events.EventEmitter
     @host      = options.localhost or 'localhost'
     @port      = options.port      or 27017
     @limit     = options.limit     or 100
-    @idfactory = options.idfactory or (collection, next) -> next null, new bson.ObjectID().toHex()
+    @idfactory = options.idfactory
+    if not @idfactory
+      if options.hex
+        @idfactory = (collection, next) -> next null, new bson.ObjectID().toHex()
+      else
+        @idfactory = (collection, next) -> next null, new bson.ObjectID()
     @connections = []
 
   # Close all open connections.  Use at your own risk.
@@ -274,18 +279,41 @@ class Database extends events.EventEmitter
         document = null
       next(error, (if document then document.value else null)) if next
 
-  # Runs a map/reduce command
+  # Creates a collection.  This is automatic, so only need to call this if special options are needed.
   #
   # Takes:
   #   collection : collection name
-  #   map        : map function
-  #   reduce     : reduce function
+  #   options    : (optional)
+  #     capped   :   true if a capped collection
+  #     size     :   cap at number of bytes
+  #     max      :   cap at number of objects (requires size also)
   #
   # Gives:
   #   error      : error
   #   document   : result document
-  mapReduce: (collection, map, reduce, next) ->
-    throw ReferenceError('NYI')
+  create: (collection, options, next) ->
+    options ?= {}
+    options = { create: collection, capped: options.capped, size: options.size, max: options.max }
+    @command 'create', options, (error, document) ->
+      if document and document.errmsg
+        error = { code: document.code, message: document.errmsg }
+        document = null
+      next(error, (if document then document.value else null)) if next
+
+  # Drops a collection
+  #
+  # Takes:
+  #   collection : collection name
+  #
+  # Gives:
+  #   error      : error
+  #   document   : result document
+  drop: (collection, next) ->
+    @command 'drop', { drop: collection}, (error, document) ->
+      if document and document.errmsg
+        error = { code: document.code, message: document.errmsg }
+        document = null
+      next(error, (if document then document.value else null)) if next
 
   # Runs a command
   #
