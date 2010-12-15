@@ -245,6 +245,42 @@ class Database
         document = null
       next(error, (if document then document.value else null)) if next
 
+  # Creates a collection.  This is automatic, so only need to call this if special options are needed.
+  #
+  # Takes:
+  #   collection : collection name
+  #   options    : (optional)
+  #     capped   :   true if a capped collection
+  #     size     :   cap at number of bytes
+  #     max      :   cap at number of objects (requires size also)
+  #
+  # Gives:
+  #   error      : error
+  #   document   : result document
+  create: (collection, options, next) ->
+    options ?= {}
+    options = { create: collection, capped: options.capped, size: options.size, max: options.max }
+    @command 'create', options, (error, document) ->
+      if document and document.errmsg
+        error = { code: document.code, message: document.errmsg }
+        document = null
+      next(error, (if document then document.value else null)) if next
+
+  # Drops a collection
+  #
+  # Takes:
+  #   collection : collection name
+  #
+  # Gives:
+  #   error      : error
+  #   document   : result document
+  drop: (collection, next) ->
+    @command 'drop', { drop: collection}, (error, document) ->
+      if document and document.errmsg
+        error = { code: document.code, message: document.errmsg }
+        document = null
+      next(error, (if document then document.value else null)) if next
+
   # Runs a command
   #
   # Takes:

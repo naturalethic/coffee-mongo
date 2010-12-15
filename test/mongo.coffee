@@ -4,12 +4,13 @@ runner.settle ->
 
 runner.mettle ->
   @db = new mongo.Database 'test'
-  @db.remove 'Country', =>
-    @db.remove 'Pet', =>
-      @db.remove 'fm', =>
-        @db.remove 'Food', =>
-          @db.remove 'Hex', =>
-            @next()
+  @db.drop 'Country', =>
+    @db.drop 'Pet', =>
+      @db.drop 'fm', =>
+        @db.drop 'Food', =>
+          @db.drop 'Hex', =>
+            @db.drop 'Planet', =>
+              @next()
 
 runner.mettle ->
   @tell 'hex ids'
@@ -183,3 +184,13 @@ runner.mettle ->
                 assert.equal indexes.length, 1
                 @db.remove 'Country', =>
                   @next()
+
+runner.mettle ->
+  @tell 'capped collection'
+  @db.create 'Planet', { capped: true, size: 1000, max: 1 }, (error) =>
+    @db.insert 'Planet', { name: 'Mercury' }, (error, document) =>
+      @db.insert 'Planet', { name: 'Venus' }, (error, document) =>
+        @db.find 'Planet', { }, (error, documents) =>
+          assert.equal documents.length, 1
+          assert.equal documents[0].name, 'Venus'
+          @next()
