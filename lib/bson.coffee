@@ -385,6 +385,7 @@ _type =
   0x08: BSONBoolean
   0x09: BSONDate
   0x0A: BSONNull
+  0x0B: BSONRegExp
   0x10: BSONInt32
   0x12: BSONInt64
 
