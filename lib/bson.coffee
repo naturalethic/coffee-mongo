@@ -317,14 +317,15 @@ class BSONElement extends BSONBuffer
             v = new BSONArray args[1]
           else if args[1] instanceof BSONBuffer
             v = args[1]
+          else if args[1] is null
+            v = new BSONNull()
           else
             v = new BSONDocument args[1]
         when 'function'
-          if args[1] instanceof RegExp
-            v = new BSONRegExp args[1]
+          v = new BSONString args[1].toString()
         #when 'undefined'
         #  v = new BSONNull args[1]
-      #console.log 'TYPE', args[1] instanceof RegExp, 'VALUE', args unless v
+      #console.log 'TYPE', typeof args[1] unless v
       throw Error 'unsupported bson value' if not v?
       k = new BSONKey args[0]
       super 1 + k.length + v.length
