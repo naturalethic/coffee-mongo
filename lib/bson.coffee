@@ -324,7 +324,8 @@ class BSONElement extends BSONBuffer
         when 'function'
           v = new BSONString args[1].toString()
         #when 'undefined'
-        #  v = new BSONNull args[1]
+        #	# TODO: HOWTO JUST IGNORE THIS KEY?!
+        #  v = new BSONNull()
       #console.log 'TYPE', typeof args[1] unless v
       throw Error 'unsupported bson value' if not v?
       k = new BSONKey args[0]
@@ -351,10 +352,11 @@ class BSONDocument extends BSONBuffer
     else
       @_value = value
       els = []
+      # DVV: kick off undefineds
       if @ instanceof BSONArray
-        els.push new BSONElement i, v for v, i in value
+        els.push new BSONElement i, v for v, i in value when v isnt undefined
       else
-        els.push new BSONElement k, v for k, v of value
+        els.push new BSONElement k, v for k, v of value when v isnt undefined
       length = 5
       length += el.length for el in els
       super length
