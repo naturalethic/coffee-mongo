@@ -1,11 +1,13 @@
 events   = require 'events'
 net      = require 'net'
+url      = require 'url'
 bson     = require './bson'
 
 # Represents a Mongo database
 #
 # Takes:
-#   name        : name of the database
+#   name        : name of the database, or url
+#     e.g. 'mongodb://user:pass@flame.mongohq.com:27068/irc'
 #   options     : options hash
 #     host      :   default 'localhost'
 #     port      :   default 27017
@@ -33,6 +35,12 @@ class Database extends events.EventEmitter
         @idfactory = (collection, next) -> next null, new bson.ObjectID().toHex()
       else
         @idfactory = (collection, next) -> next null, new bson.ObjectID()
+    conn       = url.parse @name
+    if conn.protocol is 'mongodb:'
+        @host = conn.hostname
+        @port = +conn.port if conn.port
+        @auth = conn.auth if conn.auth # FIXME: what is options analog?
+        @name = conn.pathname.substring(1) if conn.pathname
     @connections = []
 
   # Close all open connections.  Use at your own risk.
