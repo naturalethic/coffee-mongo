@@ -238,6 +238,29 @@ class BSONObjectID extends BSONBuffer
   value: ->
     @toHex()
 
+class BSONCode extends BSONString
+  type: 0x05
+
+  constructor: (value) ->
+
+    composition = [
+      new BSONInt32 0
+      new BSONString value
+      new BSONInt32 0x05
+      new BSONBoolean false
+    ]
+    i = 0
+    for item in composition
+      i += item.length
+    composition[0] = new BSONInt32 i
+    buffer = new Buffer i
+    for item in composition
+      item.copy buffer, i
+      i += item.length
+    buffer
+
+    super buffer
+
 class BSONBoolean extends BSONBuffer
   type: 0x08
 
@@ -390,6 +413,7 @@ _type =
   0x02: BSONString
   0x03: BSONDocument
   0x04: BSONArray
+  0x05: BSONCode
   0x07: BSONObjectID
   0x08: BSONBoolean
   0x09: BSONDate
@@ -411,6 +435,7 @@ module.exports =
     BSONKey:         BSONKey
     BSONFloat:       BSONFloat
     BSONString:      BSONString
+    BSONCode:        BSONCode
     BSONRegExp:      BSONRegExp
     BSONObjectID:    BSONObjectID
     BSONBoolean:     BSONBoolean
@@ -430,6 +455,7 @@ module.exports =
   Key:         BSONKey
   Float:       BSONFloat
   String:      BSONString
+  Code:        BSONCode
   RegExp:      BSONRegExp
   ObjectID:    BSONObjectID
   Boolean:     BSONBoolean

@@ -307,7 +307,43 @@ class Database extends events.EventEmitter
   #   error      : error
   #   document   : result document
   drop: (collection, next) ->
-    @command 'drop', { drop: collection}, (error, document) ->
+    @command 'drop', {drop: collection}, (error, document) ->
+      if document and document.errmsg
+        error = { code: document.code, message: document.errmsg }
+        document = null
+      next(error, (if document then document.value else null)) if next
+
+  # Evaluates the code at server-side
+  #
+  # Takes:
+  #   code       : the code as string
+  #
+  # Gives:
+  #   error      : error
+  #   document   : result document
+  eval: (code, args..., next) ->
+    #@command 'eval', {$eval: code, args: args or []}, (error, document) ->
+    bcode = new bson.Code code
+
+    '''
+    composition = [
+      new bson.Int32 0
+      new bson.String code
+      new bson.Int32 0x05
+      new bson.Boolean false
+    ]
+    i = 0
+    for item in composition
+      i += item.length
+    composition[0] = new bson.Int32 i
+    buffer = new Buffer i
+    for item in composition
+      item.copy buffer, i
+      i += item.length
+    buffer
+    '''
+
+    @command 'eval', {$eval: code}, (error, document) ->
       if document and document.errmsg
         error = { code: document.code, message: document.errmsg }
         document = null
