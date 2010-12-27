@@ -11,7 +11,6 @@ bson     = require './bson'
 #   options     : options hash
 #     host      :   default 'localhost'
 #     port      :   default 27017
-#     limit     :   default limit for find responses (default 100)
 #     hex       :   uses hex strings instead of binary ObjectID
 #     idfactory :   a function that provides ids (default to ObjectID)
 #
@@ -28,7 +27,6 @@ class Database extends events.EventEmitter
     options    = options or {}
     @host      = options.localhost or 'localhost'
     @port      = options.port      or 27017
-    @limit     = options.limit     or 100
     @idfactory = options.idfactory
     if not @idfactory
       if options.hex
@@ -142,7 +140,7 @@ class Database extends events.EventEmitter
   find: (collection, args..., next) ->
     options = if args.length == 2 then args.pop() else {}
     query   = args.pop() or {}
-    options.limit  ?= @limit
+    options.limit  ?= 0
     options.skip   ?= 0
     fields          = options.fields or {}
     # DVV: native driver allows for DEselecting fields by marking them 0, e.g. {foo: 0, bar: 0}
