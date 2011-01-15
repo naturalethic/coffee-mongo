@@ -35,11 +35,15 @@ runner.mettle ->
     assert.equal error, null
     assert.equal documents.length, 1
     assert.deepEqual @iceland, documents[0]
-    @db.find 'Country', { name: /ce/ }, (error, documents) =>
+    @db.find 'Country', { name: 'Iceland' }, (error, documents) =>
       assert.equal error, null
       assert.equal documents.length, 1
       assert.deepEqual @iceland, documents[0]
-      @next()
+      @db.find 'Country', { name: /ce/i }, (error, documents) =>
+        assert.equal error, null
+        assert.equal documents.length, 1
+        assert.deepEqual @iceland, documents[0]
+        @next()
 
 runner.mettle ->
   @tell 'find with limit/skip'

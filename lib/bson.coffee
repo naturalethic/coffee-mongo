@@ -323,6 +323,7 @@ class BSONElement extends BSONBuffer
   constructor: (args...) ->
     if args[0] instanceof Buffer
     else
+      #console.log 'ELEMENT', args, typeof args[1]
       switch typeof args[1]
         when 'boolean'
           v = new BSONBoolean args[1]
@@ -345,11 +346,14 @@ class BSONElement extends BSONBuffer
           else
             v = new BSONDocument args[1]
         when 'function'
-          v = new BSONString args[1].toString()
+          if args[1] instanceof RegExp
+            v = new BSONRegExp args[1]
+          else
+            v = new BSONString args[1].toString()
         #when 'undefined'
         #	# TODO: HOWTO JUST IGNORE THIS KEY?!
         #  v = new BSONNull()
-      #console.log 'TYPE', typeof args[1] unless v
+      #console.log 'TYPE', args[0], typeof args[1] unless v
       throw Error 'unsupported bson value' if not v?
       k = new BSONKey args[0]
       super 1 + k.length + v.length
@@ -389,6 +393,8 @@ class BSONDocument extends BSONBuffer
         el.copy @, i
         i += el.length
       @[@length - 1] = 0
+      #sys = require 'util'
+      #console.log 'DOC', sys.inspect(value), sys.inspect(@)
 
   value: ->
     return @_value if @_value
@@ -441,7 +447,6 @@ module.exports =
     BSONBoolean:     BSONBoolean
     BSONDate:        BSONDate
     BSONNull:        BSONNull
-    BSONRegExp:      BSONRegExp
     BSONInt32:       BSONInt32
     BSONInt64:       BSONInt64
     BSONElement:     BSONElement
@@ -461,7 +466,6 @@ module.exports =
   Boolean:     BSONBoolean
   Date:        BSONDate
   Null:        BSONNull
-  RegExp:      BSONRegExp
   Int32:       BSONInt32
   Int64:       BSONInt64
   Element:     BSONElement
