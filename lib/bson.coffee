@@ -238,28 +238,15 @@ class BSONObjectID extends BSONBuffer
   value: ->
     @toHex()
 
-class BSONCode extends BSONString
-  type: 0x05
+class BSONCode extends BSONBuffer
+  type: 0x0F
 
   constructor: (value) ->
 
-    composition = [
-      new BSONInt32 0
-      new BSONString value
-      new BSONInt32 0x05
-      new BSONBoolean false
-    ]
-    i = 0
-    for item in composition
-      i += item.length
-    composition[0] = new BSONInt32 i
-    buffer = new Buffer i
-    for item in composition
-      item.copy buffer, i
-      i += item.length
-    buffer
-
-    super buffer
+    str = value.toString()
+    super str.length + 10
+    # len_32, string, \0, 5_32, \0
+    @write str + '\u0000\u0005\u0000\u0000\u0000\u0000'
 
 class BSONBoolean extends BSONBuffer
   type: 0x08
@@ -349,7 +336,7 @@ class BSONElement extends BSONBuffer
           if args[1] instanceof RegExp
             v = new BSONRegExp args[1]
           else
-            v = new BSONString args[1].toString()
+            v = new BSONCode args[1]
         #when 'undefined'
         #	# TODO: HOWTO JUST IGNORE THIS KEY?!
         #  v = new BSONNull()
@@ -419,12 +406,12 @@ _type =
   0x02: BSONString
   0x03: BSONDocument
   0x04: BSONArray
-  0x05: BSONCode
   0x07: BSONObjectID
   0x08: BSONBoolean
   0x09: BSONDate
   0x0A: BSONNull
   0x0B: BSONRegExp
+  0x0F: BSONCode
   0x10: BSONInt32
   0x12: BSONInt64
 
@@ -441,8 +428,8 @@ module.exports =
     BSONKey:         BSONKey
     BSONFloat:       BSONFloat
     BSONString:      BSONString
-    BSONCode:        BSONCode
     BSONRegExp:      BSONRegExp
+    BSONCode:        BSONCode
     BSONObjectID:    BSONObjectID
     BSONBoolean:     BSONBoolean
     BSONDate:        BSONDate
@@ -460,8 +447,8 @@ module.exports =
   Key:         BSONKey
   Float:       BSONFloat
   String:      BSONString
-  Code:        BSONCode
   RegExp:      BSONRegExp
+  Code:        BSONCode
   ObjectID:    BSONObjectID
   Boolean:     BSONBoolean
   Date:        BSONDate
@@ -470,4 +457,3 @@ module.exports =
   Int64:       BSONInt64
   Element:     BSONElement
   Document:    BSONDocument
-

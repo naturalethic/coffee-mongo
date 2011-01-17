@@ -39,7 +39,7 @@ runner.mettle ->
       assert.equal error, null
       assert.equal documents.length, 1
       assert.deepEqual @iceland, documents[0]
-      @db.find 'Country', { name: /ce/i }, (error, documents) =>
+      @db.find 'Country', { name: /ce/i, grow: -> +1 }, (error, documents) =>
         assert.equal error, null
         assert.equal documents.length, 1
         assert.deepEqual @iceland, documents[0]
