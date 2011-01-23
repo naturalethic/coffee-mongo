@@ -98,11 +98,11 @@ class Database extends events.EventEmitter
   # Gives:
   #   error      : error
   update: (collection, args..., next) ->
-    update  = args.pop() or {}
+    changes = args.pop() or {}
     query   = args.pop() or {}
     @connection (error, connection) =>
       connection.retain()
-      connection.send (@compose collection, 2001, 0, 2, query, update)
+      connection.send (@compose collection, 2001, 0, 2, query, changes)
       @last_error connection, (error, mongo_error) ->
         connection.release()
         next mongo_error if next
@@ -173,8 +173,7 @@ class Database extends events.EventEmitter
   # Gives:
   #   error      : error
   #   document   : the found document, or null
-  # DVV: mind to rename to findOne, as in mongo shell?
-  find_one: (collection, args..., next) ->
+  findOne: (collection, args..., next) ->
     options = if args.length == 2 then args.pop() else {}
     query   = args.pop() or {}
     options.limit = 1
