@@ -1,27 +1,10 @@
 coffee-mongo
 ============
 
-Modeling library for use with [Node](http://nodejs.org/), [CoffeeScript](http://jashkenas.github.com/coffee-script/), and [Mongo](http://www.mongodb.org/).
+Experiment to write a Mongo driver in CoffeeScript on Node.
 
-*This library can be compiled to Javascript for deployment without a dependency on CoffeeScript*
-
-*Requires 0.3.x branch of Node.js*
-
-
-Goal
-----
-
-This library aims to be a comprehensive all-in-one solution for interacting with MongoDB from Node.  
-
-Status
-------
-
-Whereas initially the library depended on a few external drivers and focused on modeling, it has been reset to build a full
-package from the ground up.  Modeling has been removed and pushed out while a tight, clean low-level interface is developed.
-
-Planned Features
-----------------
-
+Possible further experiments for the intrepid
+---------------------------------------------
 * connection pooling (rudimentary support already built)
 * full async support on all blocking operations
 * full support for the Mongo query api
@@ -51,7 +34,3 @@ Example
 
 ---
 
-Notes
------
-
-* If you have questions or comments, I often frequent ``#coffeescript`` on freenode.
