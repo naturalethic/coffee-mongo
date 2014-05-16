@@ -238,6 +238,16 @@ class BSONObjectID extends BSONBuffer
   value: ->
     @toHex()
 
+class BSONCode extends BSONBuffer
+  type: 0x0F
+
+  constructor: (value) ->
+
+    str = value.toString()
+    super str.length + 10
+    # len_32, string, \0, 5_32, \0
+    @write str + '\u0000\u0005\u0000\u0000\u0000\u0000'
+
 class BSONBoolean extends BSONBuffer
   type: 0x08
 
@@ -300,6 +310,7 @@ class BSONElement extends BSONBuffer
   constructor: (args...) ->
     if args[0] instanceof Buffer
     else
+      #console.log 'ELEMENT', args, typeof args[1]
       switch typeof args[1]
         when 'boolean'
           v = new BSONBoolean args[1]
@@ -317,8 +328,19 @@ class BSONElement extends BSONBuffer
             v = new BSONArray args[1]
           else if args[1] instanceof BSONBuffer
             v = args[1]
+          else if args[1] is null
+            v = new BSONNull()
           else
             v = new BSONDocument args[1]
+        when 'function'
+          if args[1] instanceof RegExp
+            v = new BSONRegExp args[1]
+          else
+            v = new BSONCode args[1]
+        #when 'undefined'
+        #	# TODO: HOWTO JUST IGNORE THIS KEY?!
+        #  v = new BSONNull()
+      #console.log 'TYPE', args[0], typeof args[1] unless v
       throw Error 'unsupported bson value' if not v?
       k = new BSONKey args[0]
       super 1 + k.length + v.length
@@ -344,10 +366,11 @@ class BSONDocument extends BSONBuffer
     else
       @_value = value
       els = []
+      # DVV: kick off undefineds
       if @ instanceof BSONArray
-        els.push new BSONElement i, v for v, i in value
+        els.push new BSONElement i, v for v, i in value when v isnt undefined
       else
-        els.push new BSONElement k, v for k, v of value
+        els.push new BSONElement k, v for k, v of value when v isnt undefined
       length = 5
       length += el.length for el in els
       super length
@@ -357,6 +380,8 @@ class BSONDocument extends BSONBuffer
         el.copy @, i
         i += el.length
       @[@length - 1] = 0
+      #sys = require 'util'
+      #console.log 'DOC', sys.inspect(value), sys.inspect(@)
 
   value: ->
     return @_value if @_value
@@ -386,6 +411,7 @@ _type =
   0x09: BSONDate
   0x0A: BSONNull
   0x0B: BSONRegExp
+  0x0F: BSONCode
   0x10: BSONInt32
   0x12: BSONInt64
 
@@ -403,6 +429,7 @@ module.exports =
     BSONFloat:       BSONFloat
     BSONString:      BSONString
     BSONRegExp:      BSONRegExp
+    BSONCode:        BSONCode
     BSONObjectID:    BSONObjectID
     BSONBoolean:     BSONBoolean
     BSONDate:        BSONDate
@@ -421,6 +448,7 @@ module.exports =
   Float:       BSONFloat
   String:      BSONString
   RegExp:      BSONRegExp
+  Code:        BSONCode
   ObjectID:    BSONObjectID
   Boolean:     BSONBoolean
   Date:        BSONDate
@@ -429,4 +457,3 @@ module.exports =
   Int64:       BSONInt64
   Element:     BSONElement
   Document:    BSONDocument
-
