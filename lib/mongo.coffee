@@ -1,14 +1,16 @@
+events   = require 'events'
 net      = require 'net'
+url      = require 'url'
 bson     = require './bson'
 
 # Represents a Mongo database
 #
 # Takes:
-#   name        : name of the database
+#   name        : name of the database, or url
+#     e.g. 'mongodb://user:pass@flame.mongohq.com:27068/irc'
 #   options     : options hash
 #     host      :   default 'localhost'
 #     port      :   default 27017
-#     limit     :   default limit for find responses (default 100)
 #     hex       :   uses hex strings instead of binary ObjectID
 #     idfactory :   a function that provides ids (default to ObjectID)
 #
@@ -20,18 +22,23 @@ bson     = require './bson'
 # Gives:
 #   error      : error, if any
 #   id         : a new unique id for the provided collection
-class Database
+class Database extends events.EventEmitter
   constructor: (@name, options) ->
     options    = options or {}
     @host      = options.localhost or 'localhost'
     @port      = options.port      or 27017
-    @limit     = options.limit     or 100
     @idfactory = options.idfactory
     if not @idfactory
       if options.hex
         @idfactory = (collection, next) -> next null, new bson.ObjectID().toHex()
       else
         @idfactory = (collection, next) -> next null, new bson.ObjectID()
+    conn       = url.parse @name
+    if conn.protocol is 'mongodb:'
+        @host = conn.hostname
+        @port = +conn.port if conn.port
+        @auth = conn.auth if conn.auth # FIXME: what is options analog?
+        @name = conn.pathname.substring(1) if conn.pathname
     @connections = []
 
   # Close all open connections.  Use at your own risk.
@@ -91,14 +98,30 @@ class Database
   # Gives:
   #   error      : error
   update: (collection, args..., next) ->
-    update  = args.pop() or {}
+    changes = args.pop() or {}
     query   = args.pop() or {}
     @connection (error, connection) =>
       connection.retain()
-      connection.send (@compose collection, 2001, 0, 2, query, update)
+      connection.send (@compose collection, 2001, 0, 2, query, changes)
       @last_error connection, (error, mongo_error) ->
         connection.release()
         next mongo_error if next
+
+  # Inserts or updates the document in a collection
+  #
+  # Takes:
+  #   collection : collection name
+  #   document   : the document
+  #
+  # Gives:
+  #   error      : error
+  save: (collection, document, next) ->
+    document ?= {}
+    if not document._id
+      # TODO: fill with defaults first?
+      @insert collection, document, next
+    else
+      @update collection, {_id: document._id}, document, next
 
   # Find documents in a collection
   #
@@ -117,22 +140,25 @@ class Database
   find: (collection, args..., next) ->
     options = if args.length == 2 then args.pop() else {}
     query   = args.pop() or {}
-    options.limit  ?= @limit
+    options.limit  ?= 0
     options.skip   ?= 0
-    fields          = {}
-    if options.fields
-      if options.fields instanceof Array
-        for field in options.fields
-          fields[field] = 1
-      else
-        fields = options.fields
+    fields          = options.fields or {}
+    # DVV: native driver allows for DEselecting fields by marking them 0, e.g. {foo: 0, bar: 0}
+    # DVV: what is array alternative?! Think array should not be allowed; plus we save ticks
+    # DVV: hashes are ordered so no point in array
+    if fields instanceof Array
+      fields = {} # N.B. may come _only_ from options.fields, so safe to reset
+      for field in options.fields
+        fields[field] = 1
     if options.sort
       query =
         $query:   query
         $orderby: options.sort
+    flags = 0
+    flags += 32+1 if options.tailable
     @connection (error, connection) =>
       connection.retain()
-      connection.send (@compose collection, 2004, 0, options.skip, options.limit, query, fields), (error, data) =>
+      connection.send (@compose collection, 2004, flags, options.skip, options.limit, query, fields), (error, data) =>
         documents = @decompose data
         @last_error connection, (error, mongo_error) ->
           connection.release()
@@ -147,7 +173,7 @@ class Database
   # Gives:
   #   error      : error
   #   document   : the found document, or null
-  find_one: (collection, args..., next) ->
+  findOne: (collection, args..., next) ->
     options = if args.length == 2 then args.pop() else {}
     query   = args.pop() or {}
     options.limit = 1
@@ -214,6 +240,7 @@ class Database
   # Gives:
   #   error      : error
   index: (collection, keys, next) ->
+    # FIXME: count = Object.keys(keys).length  ?
     count = 0
     count++ for k of keys
     for key, unique of keys
@@ -223,6 +250,7 @@ class Database
       document.unique   = !!unique
       document.key      = {}
       document.key[key] = 1
+      # FIXME: ensureIndex command?
       @insert_without_id 'system.indexes', document, (error, document) =>
         next error if next and (error or not --count)
 
@@ -235,6 +263,7 @@ class Database
   # Gives:
   #   error      : error
   removeIndex: (collection, key, next) ->
+    # FIXME: same technique as in .index() to process multiple keys?
     options = {}
     options.dropIndexes = collection
     options.index       = {}
@@ -275,7 +304,43 @@ class Database
   #   error      : error
   #   document   : result document
   drop: (collection, next) ->
-    @command 'drop', { drop: collection}, (error, document) ->
+    @command 'drop', {drop: collection}, (error, document) ->
+      if document and document.errmsg
+        error = { code: document.code, message: document.errmsg }
+        document = null
+      next(error, (if document then document.value else null)) if next
+
+  # Evaluates the code at server-side
+  #
+  # Takes:
+  #   code       : the code as string
+  #
+  # Gives:
+  #   error      : error
+  #   document   : result document
+  eval: (code, args..., next) ->
+    #@command 'eval', {$eval: code, args: args or []}, (error, document) ->
+    bcode = new bson.Code code
+
+    '''
+    composition = [
+      new bson.Int32 0
+      new bson.String code
+      new bson.Int32 0x05
+      new bson.Boolean false
+    ]
+    i = 0
+    for item in composition
+      i += item.length
+    composition[0] = new bson.Int32 i
+    buffer = new Buffer i
+    for item in composition
+      item.copy buffer, i
+      i += item.length
+    buffer
+    '''
+
+    @command 'eval', {$eval: code}, (error, document) ->
       if document and document.errmsg
         error = { code: document.code, message: document.errmsg }
         document = null
@@ -339,7 +404,7 @@ class Database
     buffer
 
   # Decompose a mongo binary message
-  decompose: (buffer) ->
+  decompose: (buffer, fn) ->
     i = 4 * 3
     code = (new bson.Int32 buffer.slice i).value()
     i += 4
@@ -355,11 +420,17 @@ class Database
       documents = []
       while count--
         document = new bson.Document buffer.slice i
-        documents.push document.value()
+        if fn
+          fn document.value()
+        else
+          documents.push document.value()
         i += document.length
     else
       throw Error "unsupported response code: #{code}"
-    documents
+    if fn
+      fn undefined
+    else
+      documents
 
 _buffer_grow_size = 10000
 
@@ -403,5 +474,5 @@ class Connection
     @stream.end()
 
 module.exports =
-  # ObjectID: ObjectID
+  ObjectID: bson.ObjectID
   Database: Database
